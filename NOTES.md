@@ -68,7 +68,10 @@ Reviewed one at a time by the user; never weaken or delete these without their c
   long-presses into Reveal/Chord/Flag/Assist) and `docs/worker.js` (holds the game, converts lists,
   feeds `crypto.getRandomValues` into `place_mines`). Neither decides anything about the rules; read
   them to check that. `ui.bend` is the whole interface they call. Also outside the laws: the timer,
-  the mine counter (mines minus `UI.flags`, shown as 0 once won) and the messages.
+  the mine counter (mines minus `UI.flags`, shown as 0 once won), the messages, and the statistics
+  (localStorage, per board spec: five best times with dates, played/won/win %, current and longest
+  streaks, Windows 7 style; a game abandoned after its first click counts as a loss, including a
+  page closed mid-game, via a "pending" marker read on the next load).
 - Before the first click no game exists (mines are placed on the first reveal), so flags, chords and
   the assist do nothing until then; the board shown is `UI.idle`, Bend's display of an empty board.
 - Generation laws cover shape, count and first-click safety, not the distribution.

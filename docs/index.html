@@ -92,11 +92,21 @@
     box-shadow: inset 1px 1px var(--light), inset -1px -1px #000, inset 2px 2px #dfdfdf, inset -2px -2px var(--dark);
   }
   dialog::backdrop { background: rgb(0 0 0 / .3); }
-  dialog form { display: grid; grid-template-columns: auto 6em; gap: 8px 12px; padding: 12px; align-items: center; }
+  #custom form { display: grid; grid-template-columns: auto 6em; gap: 8px 12px; padding: 12px; align-items: center; }
   dialog input { font: inherit; width: 100%; padding: 2px 4px; border: 0; background: #fff;
     box-shadow: inset 1px 1px var(--dark), inset -1px -1px var(--light), inset 2px 2px #000; }
   dialog .row { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
   dialog .note { grid-column: 1 / -1; font-size: 12px; color: #333; margin: 0; }
+  .stats { padding: 12px; width: min(22em, calc(100vw - 48px)); }
+  .stats h3 { margin: 0 0 8px; font-size: 15px; }
+  .stats select { font: inherit; width: 100%; margin-bottom: 10px; }
+  .stats .cols { display: flex; gap: 8px 20px; flex-wrap: wrap; }
+  .stats h4 { margin: 0; font-size: 13px; }
+  .stats ol { margin: 4px 0 0; padding-left: 22px; min-width: 10em; font-variant-numeric: tabular-nums; }
+  .stats li span { color: #555; font-size: 12px; margin-left: 6px; }
+  .stats dl { display: grid; grid-template-columns: auto auto; gap: 2px 14px; margin: 0; align-content: start; }
+  .stats dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .stats .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -118,6 +128,7 @@
   </div>
   <div class="tools">
     <button id="assist" title="Opens a cell when no safe cell can be deduced. Press it too early and you lose."><svg class="ico" id="wings" aria-hidden="true"></svg> Assist</button>
+    <button id="statsbtn" title="Best times, win rate and streaks for this board">📊 Stats</button>
     <button id="flagmode" aria-pressed="false" title="Taps place flags instead of revealing">🚩 Flag mode</button>
   </div>
   <p id="msg" role="status"></p>
@@ -128,7 +139,7 @@
   <ul>
     <li>Reveal: click or tap. Flag: right-click or long-press, or switch on flag mode.</li>
     <li>Open around a number whose flags are all placed: double-click or double-tap it, or middle-click.</li>
-    <li>New game: the face.</li>
+    <li>New game: the face. Stats: best times, win rate and streaks for each board, kept in this browser.</li>
   </ul>
   <h2>The assist</h2>
   <p>Press <svg class="ico" id="wings2" aria-hidden="true"></svg> Assist when you are stuck. If no hidden cell is provably safe from what you can see (the numbers and the
@@ -138,6 +149,19 @@
   <p>The rules are written as laws and machine-checked in <a href="https://github.com/luiscleto/minebender">Bend 2</a>:
     see <a href="https://github.com/luiscleto/minebender/blob/master/LAWS.bend">LAWS.bend</a>.</p>
 </footer>
+
+<dialog id="stats" aria-labelledby="stats-title">
+  <div class="stats">
+    <h3 id="stats-title">Statistics</h3>
+    <select id="stats-board" aria-label="Board"></select>
+    <div class="cols">
+      <div><h4>Best times</h4><ol id="stats-times"></ol></div>
+      <dl id="stats-nums"></dl>
+    </div>
+    <p class="note" style="margin-top:10px">Kept in this browser only. A game you abandon after the first click counts as a loss.</p>
+    <div class="row"><button id="stats-reset">Reset</button><button id="stats-close">Close</button></div>
+  </div>
+</dialog>
 
 <dialog id="custom">
   <form method="dialog">
@@ -184,6 +208,69 @@ let V = null, cells = [], prev = [], busy = false, flagMode = false, timer = nul
 const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
 
+// Statistics, per board and in this browser only, as in Windows 7: the five
+// best times, games played and won, and streaks. A game counts from its first
+// click; one abandoned before it ends (new game, other level, page closed)
+// counts as a loss. "pending" marks a game in progress across page loads.
+const LEVELS = {"9x9x10": "Beginner", "16x16x40": "Intermediate", "30x16x99": "Expert"};
+const boardKey = v => `${v.w}x${v.h}x${v.mines}`;
+const boardName = k => LEVELS[k] || (([w, h, m]) => `Custom ${w}×${h}, ${m} mines`)(k.split("x"));
+let game = {key: null, counted: false}, lastWin = {secs: 0, rank: 0};
+
+function record(key, won, secs) {
+  const all = store.get("stats") || {};
+  const s = all[key] || {played: 0, won: 0, cur: 0, bestWin: 0, bestLoss: 0, times: []};
+  let rank = 0;
+  s.played++;
+  if (won) {
+    s.won++; s.cur = s.cur > 0 ? s.cur + 1 : 1; s.bestWin = Math.max(s.bestWin, s.cur);
+    const e = {t: secs, d: Date.now()};
+    s.times.push(e); s.times.sort((a, b) => a.t - b.t);
+    rank = s.times.indexOf(e) + 1; s.times = s.times.slice(0, 5);
+    if (rank > 5) rank = 0;
+  } else {
+    s.cur = s.cur < 0 ? s.cur - 1 : -1; s.bestLoss = Math.max(s.bestLoss, -s.cur);
+  }
+  all[key] = s; store.set("stats", all);
+  return rank;
+}
+function finish(won) {
+  game.counted = true;
+  const secs = elapsed();
+  $("time").textContent = lcd(secs);
+  lastWin = {secs, rank: record(game.key, won, secs)};
+  store.set("pending", null);
+}
+function abandon() {
+  if (!game.key || game.counted) return;
+  game.counted = true; record(game.key, false, 0); store.set("pending", null);
+}
+const bestNote = () => lastWin.rank === 1 ? " Your best time on this board!" : lastWin.rank ? ` #${lastWin.rank} of your best times here.` : "";
+{ const p = store.get("pending"); if (p) { record(p, false, 0); store.set("pending", null); } }
+
+function showStats(key) {
+  const all = store.get("stats") || {};
+  const s = all[key] || {played: 0, won: 0, cur: 0, bestWin: 0, bestLoss: 0, times: []};
+  const sel = $("stats-board");
+  const keys = [...new Set([key, ...Object.keys(LEVELS), ...Object.keys(all)])];
+  sel.replaceChildren(...keys.map(k => new Option(boardName(k), k, false, k === key)));
+  $("stats-times").replaceChildren(...[0, 1, 2, 3, 4].map(i => {
+    const li = document.createElement("li"), e = s.times[i];
+    li.textContent = e ? `${e.t} s` : "—";
+    if (e) { const d = document.createElement("span"); d.textContent = new Date(e.d).toLocaleDateString(); li.append(d); }
+    return li;
+  }));
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : w === "loss" ? "es" : "s"}`;
+  const rows = [["Games played", s.played], ["Games won", s.won],
+    ["Win percentage", s.played ? Math.round(100 * s.won / s.played) + "%" : "—"],
+    ["Longest winning streak", s.bestWin], ["Longest losing streak", s.bestLoss],
+    ["Current streak", s.cur > 0 ? plural(s.cur, "win") : s.cur < 0 ? plural(-s.cur, "loss") : "0"]];
+  $("stats-nums").replaceChildren(...rows.flatMap(([a, b]) => {
+    const dt = document.createElement("dt"), dd = document.createElement("dd");
+    dt.textContent = a; dd.textContent = b; return [dt, dd];
+  }));
+}
+
 function lcd(n) { const s = String(Math.abs(Math.min(999, Math.max(-99, n)))).padStart(n < 0 ? 2 : 3, "0"); return n < 0 ? "-" + s : s; }
 
 function size() {
@@ -218,13 +305,17 @@ function draw(v) {
   const st = v.status.$;
   $("mines").textContent = lcd(st === "Won" ? 0 : v.mines - v.flags);
   if (!busy) $("face").textContent = st === "Won" ? "😎" : st === "Lost" ? "😵" : "🙂";
-  if (v.started && st === "Playing" && !timer) { t0 = performance.now(); tick(); timer = setInterval(tick, 250); }
+  if (!v.started) game = {key: null, counted: false};
+  else if (!game.key) { game.key = boardKey(v); t0 = performance.now(); store.set("pending", game.key); }
+  if (v.started && st === "Playing" && !timer && !game.counted) { tick(); timer = setInterval(tick, 250); }
+  if (game.key && st !== "Playing" && !game.counted) finish(st === "Won");
   if (st !== "Playing" || !v.started) stop(!v.started);
-  if (st === "Won") say(`Cleared in ${$("time").textContent.replace(/^0+(?=\d)/, "")} s.`);
+  if (st === "Won") say(`Cleared in ${lastWin.secs} s.${bestNote()}`);
   else if (st === "Lost" && v.status.why.$ === "Exploded") say("Boom.");
   else if (st === "Lost") say("Too early: a safe cell could be deduced. It's shown in green.");
 }
-function tick() { $("time").textContent = lcd(Math.min(999, 1 + Math.floor((performance.now() - t0) / 1000))); }
+const elapsed = () => Math.min(999, 1 + Math.floor((performance.now() - t0) / 1000));
+function tick() { $("time").textContent = lcd(elapsed()); }
 function stop(reset) { clearInterval(timer); timer = null; if (reset) $("time").textContent = "000"; }
 function say(s) { $("msg").textContent = s; }
 
@@ -245,10 +336,11 @@ async function assist() {
   busy = false; win.classList.remove("busy");
   draw(v);
   if (v.status.$ === "Playing") say("No safe cell could be deduced, so one was opened for you.");
-  else if (v.status.$ === "Won") say(`No safe cell could be deduced; the opened one finished the board in ${$("time").textContent.replace(/^0+(?=\d)/, "")} s.`);
+  else if (v.status.$ === "Won") say(`No safe cell could be deduced; the opened one finished the board in ${lastWin.secs} s.${bestNote()}`);
 }
 
 async function newGame(level) {
+  abandon();
   if (level) store.set("level", level);
   say(""); stop(true);
   await send(level ? "level" : "reset", level ? {level} : {});
@@ -309,6 +401,14 @@ window.addEventListener("pointerup", e => {
 
 $("face").addEventListener("click", () => newGame());
 $("assist").addEventListener("click", assist);
+$("statsbtn").addEventListener("click", () => { showStats(V ? boardKey(V) : "9x9x10"); $("stats").showModal(); });
+$("stats-board").addEventListener("change", e => showStats(e.target.value));
+$("stats-close").addEventListener("click", () => $("stats").close());
+$("stats-reset").addEventListener("click", () => {
+  const k = $("stats-board").value;
+  if (!confirm(`Reset the statistics for ${boardName(k)}?`)) return;
+  const all = store.get("stats") || {}; delete all[k]; store.set("stats", all); showStats(k);
+});
 $("flagmode").addEventListener("click", () => {
   flagMode = !flagMode; $("flagmode").setAttribute("aria-pressed", flagMode);
 });
