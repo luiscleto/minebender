@@ -1,5 +1,11 @@
 # minebender
 
+![Demo: a Beginner board reaches a 50/50 in the corner; the assist opens a safe cell](docs/demo.gif)
+
+*A Beginner board: three clicks leave a true 50/50 in the bottom-right corner (two mines on one of
+the 2×2's diagonals, every number the same either way). No cell can be deduced, so the assist opens
+a safe one instead of making you guess.*
+
 Minesweeper with a no-guess assist button, written in [Bend 2](https://bend-lang.com)
 as a trial of law-driven development. **Play: https://cleto.dev/minebender/**
 

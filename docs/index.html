@@ -78,7 +78,9 @@
   .busy #board { cursor: progress; }
   .tools { display: flex; gap: 6px; justify-content: space-between; padding: 6px 2px 2px; flex-wrap: wrap; }
   .tools button { padding: 5px 12px; }
-  #msg { min-height: 1.4em; margin: 6px 4px 2px; max-width: 34em; }
+  /* Messages wrap within the window's width (never widen it) and get room for three lines. */
+  #msg { contain: inline-size; height: 4.2em; overflow-y: auto; margin: 6px 4px 2px; overflow-wrap: break-word; }
+  .ico { width: 2.1em; height: 1.15em; vertical-align: -0.25em; }
   footer {
     color: #e8f0fa; max-width: 40em; margin-top: 22px; font-size: 13px;
   }
@@ -115,7 +117,7 @@
     <div class="wrap sunken"><div id="board" role="grid" aria-label="Minefield"></div></div>
   </div>
   <div class="tools">
-    <button id="assist" title="Opens a cell when no safe cell can be deduced. Press it too early and you lose.">💡 Assist</button>
+    <button id="assist" title="Opens a cell when no safe cell can be deduced. Press it too early and you lose."><svg class="ico" id="wings" aria-hidden="true"></svg> Assist</button>
     <button id="flagmode" aria-pressed="false" title="Taps place flags instead of revealing">🚩 Flag mode</button>
   </div>
   <p id="msg" role="status"></p>
@@ -129,7 +131,7 @@
     <li>New game: the face.</li>
   </ul>
   <h2>The assist</h2>
-  <p>Press 💡 when you are stuck. If no hidden cell is provably safe from what you can see (the numbers and the
+  <p>Press <svg class="ico" id="wings2" aria-hidden="true"></svg> Assist when you are stuck. If no hidden cell is provably safe from what you can see (the numbers and the
     mine count), it opens a safe cell for you, next to the numbers when it can, so no game ever needs a guess. If a safe cell <em>could</em> be
     deduced, pressing it loses the game and shows that cell in green. Flags don't count as knowledge: a wrong flag
     can't trick it.</p>
@@ -153,6 +155,8 @@
 const MINE = `<g stroke="#000" stroke-width="1.4"><line x1="8" y1="1.5" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/><line x1="3.4" y1="3.4" x2="12.6" y2="12.6"/><line x1="12.6" y1="3.4" x2="3.4" y2="12.6"/></g><circle cx="8" cy="8" r="4.6"/><rect x="5.6" y="5.6" width="2" height="2" fill="#fff"/>`;
 const FLAG = `<polygon points="9,2 9,8.6 3.4,5.3" fill="#e00"/><rect x="8.2" y="2" width="1.5" height="9.5"/><rect x="5" y="11" width="7" height="1.6"/><rect x="3.4" y="12.5" width="10.2" height="1.9"/>`;
 const svg = s => `<svg viewBox="0 0 16 16" aria-hidden="true">${s}</svg>`;
+const WING = `<path d="M15 13C12 8.5 6.5 7.5 1 9.5c2 .8 2.2 1.8 1 2.8 2.8.2 2.6 1.6 1.6 2.8 2.8 0 3.3 1.2 3.4 2.6 3-.4 5.4-1.8 8-3.7z" fill="#fff" stroke="#444" stroke-width="1.1" stroke-linejoin="round"/><path d="M14 13.4C10.5 11.4 7 11 3.5 11.8M14 14.2c-3 .2-5.5 .8-8 2.4" fill="none" stroke="#9a9a9a" stroke-width=".8"/>`;
+const WINGS = `<ellipse cx="16" cy="4.6" rx="6" ry="2.2" fill="none" stroke="#e6b400" stroke-width="2"/>${WING}<g transform="translate(32 0) scale(-1 1)">${WING}</g>`;
 const LOOK = {
   Covered: ["cov", ""],
   Flagged: ["flg", svg(FLAG)],
@@ -167,6 +171,7 @@ const NAME = t => typeof t === "number" ? (t ? `${t}` : "empty") : t.toLowerCase
 const $ = id => document.getElementById(id);
 const board = $("board"), win = $("win");
 $("titleicon").innerHTML = MINE;
+for (const id of ["wings", "wings2"]) { $(id).setAttribute("viewBox", "0 2 32 16.5"); $(id).innerHTML = WINGS; }
 
 const worker = new Worker(new URL("./worker.js", import.meta.url), {type: "module"});
 let seq = 0, onview = new Map();
