@@ -7,5 +7,6 @@ cd "$(dirname "$0")"
 export BEND_NO_TELEMETRY=1
 export PATH="$HOME/.elan/bin:$PATH"
 bend examples.bend --check-only 2>&1 | grep -q 'ALL PROOFS CHECK\|TODOs' || { bend examples.bend --check-only; exit 1; }
+bend ui.bend --check-only
 bend PROOF.bend --check-only
 bend PROOF.bend --verdict

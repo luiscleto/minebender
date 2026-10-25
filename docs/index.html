@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minebender</title>
+<meta name="description" content="Minesweeper with a no-guess assist, its rules written and proven in Bend.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg stroke='%23000' stroke-width='1.4'%3E%3Cline x1='8' y1='1' x2='8' y2='15'/%3E%3Cline x1='1' y1='8' x2='15' y2='8'/%3E%3Cline x1='3' y1='3' x2='13' y2='13'/%3E%3Cline x1='13' y1='3' x2='3' y2='13'/%3E%3C/g%3E%3Ccircle cx='8' cy='8' r='5' fill='%23000'/%3E%3Crect x='5.5' y='5.5' width='2' height='2' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --face: #c0c0c0; --light: #fff; --dark: #808080; --line: #7b7b7b;
+    --desk: linear-gradient(160deg, #3a6ea5, #245a8f 60%, #1d4a78);
+    --title: linear-gradient(90deg, #0a246a, #3a6ea5);
+    --cs: 26px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh; background: var(--desk); color: #000;
+    font: 14px/1.4 Tahoma, Verdana, "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; padding: 24px 16px;
+  }
+  .window {
+    background: var(--face); max-width: 100%;
+    box-shadow: inset 1px 1px var(--light), inset -1px -1px #000, inset 2px 2px #dfdfdf, inset -2px -2px var(--dark),
+      0 10px 30px rgb(0 0 0 / .35);
+    padding: 3px;
+  }
+  .titlebar {
+    background: var(--title); color: #fff; font-weight: bold; padding: 3px 6px;
+    display: flex; align-items: center; gap: 6px; user-select: none;
+  }
+  .titlebar svg { width: 14px; height: 14px; }
+  .menu { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 2px; }
+  .menu button, .tools button, dialog button {
+    font: inherit; background: var(--face); border: 0; padding: 3px 10px; cursor: pointer; color: #000;
+    box-shadow: inset 1px 1px var(--light), inset -1px -1px #000, inset 2px 2px #dfdfdf, inset -2px -2px var(--dark);
+  }
+  .menu button[aria-pressed="true"], .tools button[aria-pressed="true"], button:active {
+    box-shadow: inset 1px 1px #000, inset -1px -1px var(--light), inset 2px 2px var(--dark), inset -2px -2px #dfdfdf;
+  }
+  button:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+  .frame {
+    padding: 6px;
+    box-shadow: inset 3px 3px var(--light), inset -3px -3px var(--dark);
+  }
+  .sunken { box-shadow: inset 2px 2px var(--dark), inset -2px -2px var(--light); }
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 5px 6px; margin-bottom: 6px; }
+  .lcd {
+    background: #000; color: #f00; font: bold 26px/1 "Courier New", ui-monospace, monospace;
+    padding: 2px 4px; letter-spacing: 1px; min-width: 3.4ch; text-align: center;
+    text-shadow: 0 0 4px rgb(255 0 0 / .6);
+    box-shadow: inset 1px 1px var(--dark), inset -1px -1px var(--light);
+  }
+  #face {
+    width: 38px; height: 38px; font-size: 22px; line-height: 1; padding: 0; border: 0; cursor: pointer;
+    background: var(--face);
+    box-shadow: 0 0 0 1px var(--dark), inset 2px 2px var(--light), inset -2px -2px var(--dark);
+  }
+  #face:active { box-shadow: 0 0 0 1px var(--dark), inset 2px 2px var(--dark); }
+  .wrap { overflow: auto; padding: 3px; max-width: calc(100vw - 32px - 18px); width: fit-content; margin: 0 auto; }
+  #board {
+    display: grid; grid-template-columns: repeat(var(--w), var(--cs)); width: max-content;
+    touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .c {
+    width: var(--cs); height: var(--cs); display: grid; place-items: center;
+    font: bold calc(var(--cs) * .62)/1 Tahoma, Verdana, sans-serif; background: var(--face);
+    box-shadow: inset 1px 1px 0 var(--line);
+  }
+  .c svg { width: 72%; height: 72%; }
+  .c.cov, .c.flg { box-shadow: inset 2px 2px var(--light), inset -2px -2px var(--dark); cursor: pointer; }
+  .c.cov.down { box-shadow: inset 1px 1px 0 var(--line); }
+  .c.blast { background: #f00; }
+  .c.hint { background: #9be59b; box-shadow: inset 0 0 0 2px #1f8f1f; color: #0a5f0a; }
+  .n1 { color: #0000ff; } .n2 { color: #008000; } .n3 { color: #ff0000; } .n4 { color: #000080; }
+  .n5 { color: #800000; } .n6 { color: #008080; } .n7 { color: #000; } .n8 { color: #808080; }
+  .busy #board { cursor: progress; }
+  .tools { display: flex; gap: 6px; justify-content: space-between; padding: 6px 2px 2px; flex-wrap: wrap; }
+  .tools button { padding: 5px 12px; }
+  #msg { min-height: 1.4em; margin: 6px 4px 2px; max-width: 34em; }
+  footer {
+    color: #e8f0fa; max-width: 40em; margin-top: 22px; font-size: 13px;
+  }
+  footer a { color: #fff; }
+  footer h2 { font-size: 14px; margin: 14px 0 4px; }
+  footer ul { margin: 0; padding-left: 18px; }
+  dialog {
+    border: 0; padding: 3px; background: var(--face);
+    box-shadow: inset 1px 1px var(--light), inset -1px -1px #000, inset 2px 2px #dfdfdf, inset -2px -2px var(--dark);
+  }
+  dialog::backdrop { background: rgb(0 0 0 / .3); }
+  dialog form { display: grid; grid-template-columns: auto 6em; gap: 8px 12px; padding: 12px; align-items: center; }
+  dialog input { font: inherit; width: 100%; padding: 2px 4px; border: 0; background: #fff;
+    box-shadow: inset 1px 1px var(--dark), inset -1px -1px var(--light), inset 2px 2px #000; }
+  dialog .row { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+  dialog .note { grid-column: 1 / -1; font-size: 12px; color: #333; margin: 0; }
+</style>
+</head>
+<body>
+<div class="window" id="win">
+  <div class="titlebar"><svg viewBox="0 0 16 16" id="titleicon"></svg>Minebender</div>
+  <div class="menu" role="group" aria-label="Level">
+    <button data-level="Beginner">Beginner</button>
+    <button data-level="Intermediate">Intermediate</button>
+    <button data-level="Expert">Expert</button>
+    <button data-level="Custom">Custom…</button>
+  </div>
+  <div class="frame">
+    <div class="top sunken">
+      <div class="lcd" id="mines" aria-label="Mines left">010</div>
+      <button id="face" aria-label="New game">🙂</button>
+      <div class="lcd" id="time" aria-label="Seconds">000</div>
+    </div>
+    <div class="wrap sunken"><div id="board" role="grid" aria-label="Minefield"></div></div>
+  </div>
+  <div class="tools">
+    <button id="assist" title="Opens a cell when no safe cell can be deduced. Press it too early and you lose.">💡 Assist</button>
+    <button id="flagmode" aria-pressed="false" title="Taps place flags instead of revealing">🚩 Flag mode</button>
+  </div>
+  <p id="msg" role="status"></p>
+</div>
+
+<footer>
+  <h2>Controls</h2>
+  <ul>
+    <li>Reveal: click or tap. Flag: right-click or long-press, or switch on flag mode.</li>
+    <li>Open around a number whose flags are all placed: double-click or double-tap it, or middle-click.</li>
+    <li>New game: the face.</li>
+  </ul>
+  <h2>The assist</h2>
+  <p>Press 💡 when you are stuck. If no hidden cell is provably safe from what you can see (the numbers and the
+    mine count), it opens a safe cell for you, so no game ever needs a guess. If a safe cell <em>could</em> be
+    deduced, pressing it loses the game and shows that cell in green. Flags don't count as knowledge: a wrong flag
+    can't trick it.</p>
+  <p>The rules are written as laws and machine-checked in <a href="https://github.com/luiscleto/minebender">Bend 2</a>:
+    see <a href="https://github.com/luiscleto/minebender/blob/master/LAWS.bend">LAWS.bend</a>.</p>
+</footer>
+
+<dialog id="custom">
+  <form method="dialog">
+    <label for="ch">Height</label><input id="ch" type="number" inputmode="numeric">
+    <label for="cw">Width</label><input id="cw" type="number" inputmode="numeric">
+    <label for="cm">Mines</label><input id="cm" type="number" inputmode="numeric">
+    <p class="note">Out-of-range values are adjusted, as in Windows.</p>
+    <div class="row"><button value="ok">OK</button><button value="cancel" formnovalidate>Cancel</button></div>
+  </form>
+</dialog>
+
+<script type="module">
+// Thin by design: Bend (in the worker) decides every tile and every click.
+// This file only draws the tiles it is sent and turns input into actions.
+const MINE = `<g stroke="#000" stroke-width="1.4"><line x1="8" y1="1.5" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="14.5" y2="8"/><line x1="3.4" y1="3.4" x2="12.6" y2="12.6"/><line x1="12.6" y1="3.4" x2="3.4" y2="12.6"/></g><circle cx="8" cy="8" r="4.6"/><rect x="5.6" y="5.6" width="2" height="2" fill="#fff"/>`;
+const FLAG = `<polygon points="9,2 9,8.6 3.4,5.3" fill="#e00"/><rect x="8.2" y="2" width="1.5" height="9.5"/><rect x="5" y="11" width="7" height="1.6"/><rect x="3.4" y="12.5" width="10.2" height="1.9"/>`;
+const svg = s => `<svg viewBox="0 0 16 16" aria-hidden="true">${s}</svg>`;
+const LOOK = {
+  Covered: ["cov", ""],
+  Flagged: ["flg", svg(FLAG)],
+  Mine: ["", svg(MINE)],
+  Blast: ["blast", svg(MINE)],
+  BadFlag: ["", svg(MINE + `<path d="M2 2L14 14M14 2L2 14" stroke="#e00" stroke-width="1.8"/>`)],
+  Hint: ["hint", "✓"],
+};
+const look = t => typeof t === "number" ? ["n" + t, t ? String(t) : ""] : LOOK[t];
+const NAME = t => typeof t === "number" ? (t ? `${t}` : "empty") : t.toLowerCase();
+
+const $ = id => document.getElementById(id);
+const board = $("board"), win = $("win");
+$("titleicon").innerHTML = MINE;
+
+const worker = new Worker(new URL("./worker.js", import.meta.url), {type: "module"});
+let seq = 0, onview = new Map();
+const send = (op, more = {}) => new Promise(res => {
+  const id = ++seq; onview.set(id, res); worker.postMessage({op, id, ...more});
+});
+worker.onmessage = ({data}) => { onview.get(data.id)?.(data); onview.delete(data.id); draw(data); };
+
+let V = null, cells = [], prev = [], busy = false, flagMode = false, timer = null, t0 = 0, lastTap = null;
+const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+
+function lcd(n) { const s = String(Math.abs(Math.min(999, Math.max(-99, n)))).padStart(n < 0 ? 2 : 3, "0"); return n < 0 ? "-" + s : s; }
+
+function size() {
+  if (!V) return;
+  const room = Math.min(window.innerWidth, 1400) - 32 - 30;
+  const cs = Math.max(24, Math.min(30, Math.floor(room / V.w)));
+  document.documentElement.style.setProperty("--cs", cs + "px");
+}
+
+function build(w, h) {
+  board.style.setProperty("--w", w);
+  board.replaceChildren();
+  cells = []; prev = [];
+  for (let i = 0; i < w * h; i++) {
+    const d = document.createElement("div");
+    d.className = "c"; d.dataset.i = i; d.setAttribute("role", "gridcell");
+    board.append(d); cells.push(d);
+  }
+}
+
+function draw(v) {
+  const resized = !V || V.w !== v.w || V.h !== v.h;
+  V = v;
+  if (resized) { build(v.w, v.h); size(); }
+  v.tiles.flat().forEach((t, i) => {
+    if (prev[i] === t) return;
+    prev[i] = t;
+    const [cls, html] = look(t);
+    cells[i].className = "c " + cls; cells[i].innerHTML = html;
+    cells[i].setAttribute("aria-label", NAME(t));
+  });
+  const st = v.status.$;
+  $("mines").textContent = lcd(st === "Won" ? 0 : v.mines - v.flags);
+  if (!busy) $("face").textContent = st === "Won" ? "😎" : st === "Lost" ? "😵" : "🙂";
+  if (v.started && st === "Playing" && !timer) { t0 = performance.now(); tick(); timer = setInterval(tick, 250); }
+  if (st !== "Playing" || !v.started) stop(!v.started);
+  if (st === "Won") say(`Cleared in ${$("time").textContent.replace(/^0+(?=\d)/, "")} s.`);
+  else if (st === "Lost" && v.status.why.$ === "Exploded") say("Boom.");
+  else if (st === "Lost") say("Too early: a safe cell could be deduced. It's shown in green.");
+}
+function tick() { $("time").textContent = lcd(Math.min(999, 1 + Math.floor((performance.now() - t0) / 1000))); }
+function stop(reset) { clearInterval(timer); timer = null; if (reset) $("time").textContent = "000"; }
+function say(s) { $("msg").textContent = s; }
+
+const over = () => V && V.status.$ !== "Playing";
+const at = (x, y) => V.tiles[y][x];
+
+async function act(op, x, y) {
+  if (busy || over()) return;
+  if (!V.started && op !== "reveal") return;
+  say("");
+  await send(op, {x, y});
+}
+
+async function assist() {
+  if (busy || over() || !V.started) return;
+  busy = true; win.classList.add("busy"); $("face").textContent = "🤔"; say("Thinking…");
+  const [v] = await Promise.all([send("assist"), new Promise(r => setTimeout(r, 450))]);
+  busy = false; win.classList.remove("busy");
+  draw(v);
+  if (v.status.$ === "Playing") say("No safe cell could be deduced, so one was opened for you.");
+  else if (v.status.$ === "Won") say(`No safe cell could be deduced; the opened one finished the board in ${$("time").textContent.replace(/^0+(?=\d)/, "")} s.`);
+}
+
+async function newGame(level) {
+  if (level) store.set("level", level);
+  say(""); stop(true);
+  await send(level ? "level" : "reset", level ? {level} : {});
+  const name = (level || store.get("level") || {$: "Beginner"}).$;
+  document.querySelectorAll("[data-level]").forEach(b => b.setAttribute("aria-pressed", b.dataset.level === name));
+}
+
+// Input. Mouse: left reveals, right flags, middle or double-click chords.
+// Touch: tap reveals, long-press flags, double-tap chords.
+let press = null;
+const cellAt = e => {
+  const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".c");
+  if (!el || !board.contains(el)) return null;
+  const i = +el.dataset.i;
+  return {x: i % V.w, y: Math.floor(i / V.w), el};
+};
+const down = (c, on) => { if (c && at(c.x, c.y) === "Covered") c.el.classList.toggle("down", on); };
+
+board.addEventListener("contextmenu", e => e.preventDefault());
+board.addEventListener("pointerdown", e => {
+  const c = cellAt(e);
+  if (!c || busy || over()) return;
+  if (e.pointerType === "mouse" && e.button === 2) { act("flag", c.x, c.y); return; }
+  if (e.button !== 0 && e.button !== 1) return;
+  if (e.button === 1) e.preventDefault();
+  press = {...c, button: e.button, touch: e.pointerType !== "mouse", long: false};
+  if (press.touch) press.timer = setTimeout(() => {
+    if (!press) return;
+    press.long = true; down(press, false); navigator.vibrate?.(25); act("flag", press.x, press.y);
+  }, 400);
+  down(press, true);
+  if (!flagMode) $("face").textContent = "😮";
+});
+board.addEventListener("pointermove", e => {
+  if (!press || press.touch) return;
+  const c = cellAt(e);
+  if (c && c.el !== press.el) { down(press, false); press = {...press, ...c}; down(press, true); }
+});
+const cancel = () => {
+  if (!press) return;
+  clearTimeout(press.timer); down(press, false); press = null;
+  if (!busy && !over()) $("face").textContent = "🙂";
+};
+board.addEventListener("pointercancel", cancel);
+window.addEventListener("pointerup", e => {
+  if (!press) return;
+  const p = press, c = cellAt(e);
+  cancel();
+  if (p.long || !c || (p.touch && c.el !== p.el)) return;
+  if (p.button === 1) { act("chord", c.x, c.y); return; }
+  const now = performance.now(), t = at(c.x, c.y);
+  if (typeof t === "number" && lastTap && lastTap.el === c.el && now - lastTap.t < 450) {
+    lastTap = null; act("chord", c.x, c.y); return;
+  }
+  lastTap = typeof t === "number" ? {el: c.el, t: now} : null;
+  act(flagMode ? "flag" : "reveal", c.x, c.y);
+});
+
+$("face").addEventListener("click", () => newGame());
+$("assist").addEventListener("click", assist);
+$("flagmode").addEventListener("click", () => {
+  flagMode = !flagMode; $("flagmode").setAttribute("aria-pressed", flagMode);
+});
+document.querySelectorAll("[data-level]").forEach(b => b.addEventListener("click", () => {
+  if (b.dataset.level !== "Custom") return newGame({$: b.dataset.level});
+  const d = $("custom");
+  $("ch").value = V.h; $("cw").value = V.w; $("cm").value = V.mines;
+  d.returnValue = "";
+  d.showModal();
+}));
+$("custom").addEventListener("close", () => {
+  if ($("custom").returnValue !== "ok") return;
+  const n = id => Math.max(0, Math.min(99999, Math.floor(+$(id).value || 0)));
+  newGame({$: "Custom", w: n("cw"), h: n("ch"), mines: n("cm")});
+});
+window.addEventListener("resize", size);
+
+newGame(store.get("level") || {$: "Beginner"});
+</script>
+</body>
+</html>

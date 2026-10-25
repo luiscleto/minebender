@@ -46,8 +46,15 @@ Reviewed one at a time by the user; never weaken or delete these without their c
 
 ## Trust boundary (what the laws do not cover)
 
-- The UI must render exactly `G.knowledge(g)`, `G.status(g)` and `G.flagged(g, ·)` (later: a `display(g)` with its own laws); the laws are about
-  those accessors.
+- The screen is `G.display(g)`, a grid of tiles; the DRAFT display laws (end of LAWS.bend, awaiting
+  review) tie it to the knowledge, flags and status. What is *not* proven is the JavaScript between
+  that grid and the pixels: `docs/index.html` (draws the tile codes it is sent; turns clicks, taps and
+  long-presses into Reveal/Chord/Flag/Assist) and `docs/worker.js` (holds the game, converts lists,
+  feeds `crypto.getRandomValues` into `place_mines`). Neither decides anything about the rules; read
+  them to check that. `ui.bend` is the whole interface they call. Also outside the laws: the timer,
+  the mine counter (mines minus `UI.flags`, shown as 0 once won) and the messages.
+- Before the first click no game exists (mines are placed on the first reveal), so flags, chords and
+  the assist do nothing until then; the board shown is `UI.idle`, Bend's display of an empty board.
 - Generation laws cover shape, count and first-click safety, not the distribution.
 - Which safe cell the assist reveals, and which provably safe cell an AssistTooEarly loss shows, are left free (the user does not mind, provided it is safe).
 
@@ -62,12 +69,18 @@ No case of a law passing while observed behaviour was wrong. Found during review
 
 ## Status (2026-10-25)
 
-All 25 laws are proven: `./check.sh` prints ALL PROOFS CHECK for `bend PROOF.bend` and for
+All 25 approved laws, plus the 4 DRAFT display laws, are proven: `./check.sh` prints ALL PROOFS CHECK for `bend PROOF.bend` and for
 `--verdict` (the Lean-proven BendTT kernel; needs Lean v4.34.0, installed with elan v4.2.4 into
 `~/.elan`, checksum verified against the GitHub release). Self-play (`selfplay.bend`) wins every test
 game; on Expert a solver call takes ~150 ms, ~1 s when genuinely stuck.
 
-Size: LAWS.bend 573 lines (user-owned); code ~1030 lines (types, board, game, solver); proofs
+Web page: https://luiscleto.github.io/minebender/ (`docs/`, served by GitHub Pages; `./build.sh`
+regenerates `docs/ui.mjs` from `ui.bend` with `bend ui.bend -o docs/ui.mjs`). The upstream page
+bundler (`bend page.html -o dist`) was tried first, but it does not follow `new Worker(...)`, and the
+game must run in a worker: the assist takes ~1 s in the browser when stuck (7.8 s worst seen on
+Expert), which would freeze the page. So the page is three static files and no bundler.
+
+Size: LAWS.bend 655 lines (573 approved + the display draft) (user-owned); code ~1030 lines (types, board, game, solver); proofs
 ~9400 lines in PROOF.bend + 13 `proof_*.bend` lemma modules (solver correctness alone ~2600).
 
 ## Q1: what the user read beyond LAWS.bend
