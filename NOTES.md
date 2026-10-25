@@ -74,7 +74,7 @@ All 25 approved laws, plus the 4 DRAFT display laws, are proven: `./check.sh` pr
 `~/.elan`, checksum verified against the GitHub release). Self-play (`selfplay.bend`) wins every test
 game; on Expert a solver call takes ~150 ms, ~1 s when genuinely stuck.
 
-Web page: https://luiscleto.github.io/minebender/ (`docs/`, served by GitHub Pages; `./build.sh`
+Web page: https://cleto.dev/minebender/ (`docs/`, served by GitHub Pages; `./build.sh`
 regenerates `docs/ui.mjs` from `ui.bend` with `bend ui.bend -o docs/ui.mjs`). The upstream page
 bundler (`bend page.html -o dist`) was tried first, but it does not follow `new Worker(...)`, and the
 game must run in a worker: the assist takes ~1 s in the browser when stuck (7.8 s worst seen on

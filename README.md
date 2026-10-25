@@ -1,7 +1,7 @@
 # minebender
 
 Minesweeper with a no-guess assist button, written in [Bend 2](https://bend-lang.com)
-as a trial of law-driven development. **Play: https://luiscleto.github.io/minebender/**
+as a trial of law-driven development. **Play: https://cleto.dev/minebender/**
 
 - `LAWS.bend`: the specification, as laws in plain English and in Bend. Owned by the human.
 - `types.bend`, `board.bend`, `game.bend`, `solver.bend`: the game and the deduction engine behind
