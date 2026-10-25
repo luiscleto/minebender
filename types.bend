@@ -49,3 +49,13 @@ type Level is Data:
 
 type Setup is Data:
   Setup{w: Nat, h: Nat, mines: Nat}
+
+# What one cell looks like on screen.
+type Tile is Data:
+  Covered{}
+  Flagged{}
+  Number{n: Nat}
+  Blast{}
+  Mine{}
+  BadFlag{}
+  Hint{}

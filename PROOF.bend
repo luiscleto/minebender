@@ -9,6 +9,7 @@ import ./proof_copy.bend as PC
 import ./proof_gen.bend as PN
 import ./proof_laws.bend as PW
 import ./proof_assist.bend as PA
+import ./proof_display.bend as PD
 
 # Proofs of the laws in LAWS.bend: `def L.name` proves `law name`.
 
@@ -399,3 +400,18 @@ def L.assist_stuck(w, h, layout, shape, g, r, playing, stuck):
 
 def L.assist_too_early(w, h, layout, shape, g, r, playing, q, option):
   PA.assist_too_early_(w, h, layout, shape, g, r, playing, q, option)
+
+# The display
+# ===========
+
+def L.display_play(w, h, layout, shape, g, r, playing, p, on):
+  PD.display_play_(w, h, layout, shape, g, r, playing, p, on)
+
+def L.display_blast(w, h, layout, shape, g, r, p, lost, on):
+  PD.display_blast_(w, h, layout, shape, g, r, p, lost, on)
+
+def L.display_hint(w, h, layout, shape, g, r, s, lost, on):
+  PD.display_hint_(w, h, layout, shape, g, r, s, lost, on)
+
+def L.display_mines(w, h, layout, shape, g, r, over, q, on, m):
+  PD.display_mines_(w, h, layout, shape, g, r, over, q, on, m)

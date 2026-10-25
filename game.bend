@@ -452,3 +452,97 @@ def step(+g: Game, a: T.Action) -> Game:
       flag(g, p)
     case T.Assist{}:
       assist(g)
+
+# The display
+# -----------
+# What every cell looks like on screen. During play it shows exactly what the
+# player knows, plus their flags. Once the game is over it also shows the
+# mines, like Windows: the mine that exploded, every other mine, crosses on
+# wrong flags, and (after an assist pressed too early) the safe cell missed.
+
+def mark.why(why: T.Loss, +p: T.Pos) -> Maybe<&2, T.Tile>:
+  match why:
+    case T.Exploded{e}:
+      Bool.pick(Maybe<&2, T.Tile>, B.same(e, p), Some{T.Blast{}}, None{})
+    case T.AssistTooEarly{s}:
+      Bool.pick(Maybe<&2, T.Tile>, B.same(s, p), Some{T.Hint{}}, None{})
+
+# A cell the end of the game singles out.
+def mark(st: T.Status, +p: T.Pos) -> Maybe<&2, T.Tile>:
+  match st:
+    case T.Lost{why}:
+      mark.why(why, p)
+    case o:
+      None{}
+
+def tile_lost(m: Bool, f: Bool) -> T.Tile:
+  match m f:
+    case True{} True{}:
+      T.Flagged{}
+    case True{} False{}:
+      T.Mine{}
+    case False{} True{}:
+      T.BadFlag{}
+    case False{} False{}:
+      T.Covered{}
+
+def tile_hidden(st: T.Status, m: Bool, f: Bool) -> T.Tile:
+  match st:
+    case T.Playing{}:
+      Bool.pick(T.Tile, f, T.Flagged{}, T.Covered{})
+    case T.Won{}:
+      Bool.pick(T.Tile, m, T.Flagged{}, T.Covered{})
+    case T.Lost{why}:
+      tile_lost(m, f)
+
+def tile_shown(m: Bool, w: Nat, h: Nat, layout: T.Grid(Bool), p: T.Pos) -> T.Tile:
+  match m:
+    case True{}:
+      T.Blast{}
+    case False{}:
+      T.Number{B.adj_mines(w, h, layout, p)}
+
+def tile.go(mk: Maybe<&2, T.Tile>, s: Bool, m: Bool, f: Bool, st: T.Status, w: Nat, h: Nat,
+  layout: T.Grid(Bool), p: T.Pos) -> T.Tile:
+  match mk:
+    case Some{t}:
+      t
+    case None{}:
+      match s:
+        case True{}:
+          tile_shown(m, w, h, layout, p)
+        case False{}:
+          tile_hidden(st, m, f)
+
+def tile_at(+w: Nat, +h: Nat, +layout: T.Grid(Bool), +shown: T.Grid(Bool), +flags: List<&2, T.Pos>,
+  +st: T.Status, +p: T.Pos) -> T.Tile:
+  tile.go(mark(st, p), B.at(Bool, False{}, shown, p), B.mine(layout, p), B.contains(flags, p), st, w, h, layout, p)
+
+def disp_row(+w: Nat, +h: Nat, +layout: T.Grid(Bool), +shown: T.Grid(Bool), +flags: List<&2, T.Pos>,
+  +st: T.Status, +y: Nat, xs: List<&2, Nat>) -> List<&2, T.Tile>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      tile_at(w, h, layout, shown, flags, st, T.Pos{x, y}) <> disp_row(w, h, layout, shown, flags, st, y, t)
+
+def disp_rows(+w: Nat, +h: Nat, +layout: T.Grid(Bool), +shown: T.Grid(Bool), +flags: List<&2, T.Pos>,
+  +st: T.Status, ys: List<&2, Nat>) -> T.Grid(T.Tile):
+  match ys:
+    case Nil{}:
+      Nil{}
+    case y <> t:
+      disp_row(w, h, layout, shown, flags, st, y, List.range(w)) <> disp_rows(w, h, layout, shown, flags, st, t)
+
+def display(g: Game) -> T.Grid(T.Tile):
+  match g:
+    case Game{+w, +h, +layout, +shown, +flags, +status}:
+      disp_rows(w, h, layout, shown, flags, status, List.range(h))
+
+# How many flags the mine counter shows: the mines, less the flags placed.
+def flags_shown(+w: Nat, +h: Nat, +shown: T.Grid(Bool), flags: List<&2, T.Pos>) -> Nat:
+  match flags:
+    case Nil{}:
+      0n
+    case +p <> t:
+      Nat.add(Bool.pick(Nat, unrevealed(w, h, shown, p), 1n, 0n), flags_shown(w, h, shown, t))

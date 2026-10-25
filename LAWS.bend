@@ -571,3 +571,85 @@ law gen_first_safe:
   for first: T.Pos
   for rs: List<&2, U32>
   {mine(G.place_mines(w, h, n, first, rs), first) == False{} : Bool}
+
+# ==========================================================================
+# Laws: the display
+# ==========================================================================
+# DRAFT, written while the owner was away: awaiting review. Everything above
+# this section is approved.
+
+# What the screen shows at p.
+def tile(g: G.Game, p: T.Pos) -> T.Tile:
+  at(T.Tile, T.Covered{}, G.display(g), p)
+
+# How a cell looks given what the player sees there and their flag.
+def tile_of(s: T.Seen, flag: Bool) -> T.Tile:
+  match s:
+    case T.Hidden{}:
+      Bool.pick(T.Tile, flag, T.Flagged{}, T.Covered{})
+    case T.Shown{n}:
+      T.Number{n}
+    case T.Boom{}:
+      T.Blast{}
+
+def is_covered(t: T.Tile) -> Bool:
+  match t:
+    case T.Covered{}:
+      True{}
+    case o:
+      False{}
+
+# LAW: "During play, the screen shows exactly what the player knows, and
+# their flags": nothing about the hidden mines leaks onto the screen.
+law display_play:
+  for w: Nat
+  for h: Nat
+  for layout: T.Grid(Bool)
+  for shape: {shaped(Bool, w, h, layout) == True{} : Bool}
+  for g: G.Game
+  for r: Reachable(w, h, layout, g)
+  for playing: {G.status(g) == T.Playing{} : T.Status}
+  for p: T.Pos
+  for on: {on_board(w, h, p) == True{} : Bool}
+  {tile(g, p) == tile_of(seen(G.knowledge(g), p), G.flagged(g, p)) : T.Tile}
+
+# LAW: "After an explosion, the screen shows the mine that exploded."
+law display_blast:
+  for w: Nat
+  for h: Nat
+  for layout: T.Grid(Bool)
+  for shape: {shaped(Bool, w, h, layout) == True{} : Bool}
+  for g: G.Game
+  for r: Reachable(w, h, layout, g)
+  for p: T.Pos
+  for lost: {G.status(g) == T.Lost{T.Exploded{p}} : T.Status}
+  for on: {on_board(w, h, p) == True{} : Bool}
+  {tile(g, p) == T.Blast{} : T.Tile}
+
+# LAW: "After the assist is pressed too early, the screen shows the safe cell
+# the player could have revealed."
+law display_hint:
+  for w: Nat
+  for h: Nat
+  for layout: T.Grid(Bool)
+  for shape: {shaped(Bool, w, h, layout) == True{} : Bool}
+  for g: G.Game
+  for r: Reachable(w, h, layout, g)
+  for s: T.Pos
+  for lost: {G.status(g) == T.Lost{T.AssistTooEarly{s}} : T.Status}
+  for on: {on_board(w, h, s) == True{} : Bool}
+  {tile(g, s) == T.Hint{} : T.Tile}
+
+# LAW: "Once the game is over, no mine stays covered."
+law display_mines:
+  for w: Nat
+  for h: Nat
+  for layout: T.Grid(Bool)
+  for shape: {shaped(Bool, w, h, layout) == True{} : Bool}
+  for g: G.Game
+  for r: Reachable(w, h, layout, g)
+  for over: {G.status(g) != T.Playing{} : T.Status}
+  for q: T.Pos
+  for on: {on_board(w, h, q) == True{} : Bool}
+  for m: {mine(layout, q) == True{} : Bool}
+  {is_covered(tile(g, q)) == False{} : Bool}
