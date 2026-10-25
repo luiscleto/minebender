@@ -405,10 +405,39 @@ def first_safe(+layout: T.Grid(Bool), +shown: T.Grid(Bool), +ps: List<&2, T.Pos>
   Maybe<&2, T.Pos>:
   first_safe.go(ps, safe_here(layout, shown, ps), layout, shown)
 
-def safe_cell(g: Game) -> Maybe<&2, T.Pos>:
+def any_shown(+shown: T.Grid(Bool), ps: List<&2, T.Pos>) -> Bool:
+  match ps:
+    case Nil{}:
+      False{}
+    case p <> t:
+      B.at(Bool, False{}, shown, p) || any_shown(shown, t)
+
+# The cells of ps not revealed yet but next to a revealed one.
+def edges(+w: Nat, +h: Nat, +shown: T.Grid(Bool), ps: List<&2, T.Pos>) -> List<&2, T.Pos>:
+  match ps:
+    case Nil{}:
+      Nil{}
+    case +p <> t:
+      List.filter.put(T.Pos, p, edges(w, h, shown, t),
+        Bool.not(B.at(Bool, False{}, shown, p)) && any_shown(shown, B.neighbours(w, h, p)))
+
+# ps from a point picked by k, wrapping around.
+def turn(+ps: List<&2, T.Pos>, +k: Nat) -> List<&2, T.Pos>:
+  +i = Nat.mod(k, Nat.add(List.length(&2, T.Pos, ps), 1n))
+  List.append(&2, T.Pos, List.drop(&2, T.Pos, ps, i), List.take(&2, T.Pos, ps, i))
+
+# Where the assist looks for a safe cell, k being a random number: first
+# the hidden cells next to a revealed one, then every cell, each from a
+# random point; last every cell in order, which never comes into play but
+# lets the proofs see a safe cell is always found.
+def safe_list(+w: Nat, +h: Nat, +shown: T.Grid(Bool), +k: Nat) -> List<&2, T.Pos>:
+  +cs = B.cells(w, h)
+  List.append(&2, T.Pos, turn(edges(w, h, shown, cs), k), List.append(&2, T.Pos, turn(cs, k), cs))
+
+def safe_cell(g: Game, +k: Nat) -> Maybe<&2, T.Pos>:
   match g:
-    case Game{w, h, +layout, +shown, flags, status}:
-      first_safe(layout, shown, B.cells(w, h))
+    case Game{+w, +h, +layout, +shown, flags, status}:
+      first_safe(layout, shown, safe_list(w, h, shown, k))
 
 def lose(g: Game, p: T.Pos) -> Game:
   match g:
@@ -422,22 +451,22 @@ def assist.safe(m: Maybe<&2, T.Pos>, g: Game) -> Game:
     case Some{p}:
       open(g, p)
 
-def assist.pick(r: Maybe<&2, T.Pos>, +g: Game) -> Game:
+def assist.pick(r: Maybe<&2, T.Pos>, +g: Game, +k: Nat) -> Game:
   match r:
     case Some{q}:
       lose(g, q)
     case None{}:
-      assist.safe(safe_cell(g), g)
+      assist.safe(safe_cell(g, k), g)
 
-def assist.go(playing: Bool, +g: Game) -> Game:
+def assist.go(playing: Bool, +g: Game, +k: Nat) -> Game:
   match playing:
     case False{}:
       g
     case True{}:
-      assist.pick(S.solve(knowledge(g)), g)
+      assist.pick(S.solve(knowledge(g)), g, k)
 
-def assist(+g: Game) -> Game:
-  assist.go(is_playing(status(g)), g)
+def assist(+g: Game, +k: Nat) -> Game:
+  assist.go(is_playing(status(g)), g, k)
 
 # Actions
 # -------
@@ -450,8 +479,8 @@ def step(+g: Game, a: T.Action) -> Game:
       chord_play(chord_targets(g, p), g)
     case T.Flag{p}:
       flag(g, p)
-    case T.Assist{}:
-      assist(g)
+    case T.Assist{k}:
+      assist(g, k)
 
 # The display
 # -----------

@@ -30,6 +30,10 @@ Reviewed one at a time by the user; never weaken or delete these without their c
 - 2026-10-25 definitions: flags_among, hidden_unflagged, chord_targets.pick, chord_targets.go, chord_targets
   (all_safe_revealed simplified afterwards, same meaning: passes +v on instead of rebuilding it)
 - 2026-10-25: chord (+ def reveals), assist_stuck, assist_too_early, gen_shape, gen_count, gen_first_safe
+- 2026-10-25 (later, user chose "option 1"): the assist action carries a random number, `Assist{k}`;
+  `assist_stuck` and `assist_too_early` gained `for k: Nat` and use `T.Assist{k}`. Same guarantees,
+  for every k. The number picks which safe cell opens when stuck (frontier first, from a random
+  point), which the user asked for; that preference itself is not a law.
 
 ## Choices settled during review
 
@@ -72,16 +76,20 @@ No case of a law passing while observed behaviour was wrong. Found during review
 All 25 approved laws, plus the 4 DRAFT display laws, are proven: `./check.sh` prints ALL PROOFS CHECK for `bend PROOF.bend` and for
 `--verdict` (the Lean-proven BendTT kernel; needs Lean v4.34.0, installed with elan v4.2.4 into
 `~/.elan`, checksum verified against the GitHub release). Self-play (`selfplay.bend`) wins every test
-game; on Expert a solver call takes ~150 ms, ~1 s when genuinely stuck.
+game.
+
+Assist speed, Expert self-play through the page's module in node (25 games, 5,451 calls): mean
+20 ms, worst 267 ms. Before the solver rework: mean 185 ms, worst 12.8 s, ~1 s whenever stuck.
 
 Web page: https://cleto.dev/minebender/ (`docs/`, served by GitHub Pages; `./build.sh`
 regenerates `docs/ui.mjs` from `ui.bend` with `bend ui.bend -o docs/ui.mjs`). The upstream page
 bundler (`bend page.html -o dist`) was tried first, but it does not follow `new Worker(...)`, and the
-game must run in a worker: the assist takes ~1 s in the browser when stuck (7.8 s worst seen on
-Expert), which would freeze the page. So the page is three static files and no bundler.
+game runs in a worker so a slow assist can never freeze the page (that was seconds before the solver
+rework, now well under a second). So the page is three static files and no bundler.
 
-Size: LAWS.bend 655 lines (573 approved + the display draft) (user-owned); code ~1030 lines (types, board, game, solver); proofs
-~9400 lines in PROOF.bend + 13 `proof_*.bend` lemma modules (solver correctness alone ~2600).
+Size: LAWS.bend ~660 lines (approved + the display draft) (user-owned); code ~1330 lines (types,
+board, game, solver); laws and proofs together ~12,900 lines across LAWS.bend, PROOF.bend and 16
+`proof_*.bend` lemma modules.
 
 ## Q1: what the user read beyond LAWS.bend
 
@@ -110,9 +118,20 @@ itself (`!=` instead of a helper, `not same` in `adjacent`, the `flags_hidden` l
   soundness needed grid sums = cell sums (generic templated lemma), inequality arithmetic, and
   completion/coverage invariants for the partial layout. The code was changed in one place for it:
   the to-do ordering used a pair (hard to take apart in proofs) and became two filters.
-- The fast solver is proven against the brute-force definition of `ProvablySafe`; the search is
-  "frontier first" depth-first with bound pruning, not component-split (the brief's suggestion), to
-  keep the proof one induction.
+- The solver is proven against the brute-force definition of `ProvablySafe`. Its first version
+  searched in reading order: easy to prove, but 1 s to 12.8 s on Expert. The rework follows the
+  standard constraint approach to Minesweeper (connected components of the frontier, searched
+  separately: Becerra, "Algorithmic Approaches to Playing Minesweeper", Harvard 2015, ch. 6;
+  Tatham's Mines solver was read too, but it is heuristic and the assist law needs an exact
+  answer). Two tricks kept the proof small:
+  - The component order is a heuristic prefix put in front of the old, proven order. The search
+    skips cells already assigned, so the proofs only need "every cell is still in the list" and
+    "every entry is one of the solve's own": no proof that the components are right.
+  - The search carries running counts instead of rescanning the grid; rather than re-prove the
+    search, `proof_speed.bend` proves the counting search returns exactly what the old one returns
+    (`dfs2_eq`), and the old lemmas do the rest.
+  First prototypes were benchmarked unproven; one bad ordering ran for 10+ minutes and maxed the
+  user's fan. Benchmarks now run under `nice` with a time limit.
 
 ## Bend lessons
 

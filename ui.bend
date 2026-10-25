@@ -29,8 +29,9 @@ def chord(+g: G.Game, x: Nat, y: Nat) -> G.Game:
 def flag(+g: G.Game, x: Nat, y: Nat) -> G.Game:
   G.step(g, T.Flag{T.Pos{x, y}})
 
-def assist(+g: G.Game) -> G.Game:
-  G.step(g, T.Assist{})
+# k is a random number: when stuck, it picks which safe cell opens.
+def assist(+g: G.Game, k: Nat) -> G.Game:
+  G.step(g, T.Assist{k})
 
 # Every tile on screen, row by row.
 def tiles(g: G.Game) -> T.Grid(T.Tile):

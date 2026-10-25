@@ -128,11 +128,12 @@ def flag_over(g, p, over):
 law assist_over:
   for +g: G.Game
   for +over: {G.is_playing(G.status(g)) == False{} : Bool}
-  {G.assist(g) == g : G.Game}
+  for +k: Nat
+  {G.assist(g, k) == g : G.Game}
 
-def assist_over(g, over):
+def assist_over(g, over, k):
   %Equal.sym(Bool, G.is_playing(G.status(g)), False{}, over) :
-    {G.assist.go(_, g) == g : G.Game}
+    {G.assist.go(_, g, k) == g : G.Game}
   {==}
 
 law frozen_:
@@ -149,8 +150,8 @@ def frozen_(g, over, a):
       chord_over(G.chord_targets(g, p), g, not_playing(G.status(g), over))
     case T.Flag{p}:
       flag_over(g, p, not_playing(G.status(g), over))
-    case T.Assist{}:
-      assist_over(g, not_playing(G.status(g), over))
+    case T.Assist{k}:
+      assist_over(g, not_playing(G.status(g), over), k)
 
 def L.frozen(g, over, a):
   frozen_(g, over, a)
@@ -395,11 +396,11 @@ def L.flood_exact(w, h, layout, shape, g, r, playing, p, q, before, after):
 # The no-guess assist
 # ===================
 
-def L.assist_stuck(w, h, layout, shape, g, r, playing, stuck):
-  PA.assist_stuck_(w, h, layout, shape, g, r, playing, stuck)
+def L.assist_stuck(w, h, layout, shape, g, r, playing, stuck, k):
+  PA.assist_stuck_(w, h, layout, shape, g, r, playing, stuck, k)
 
-def L.assist_too_early(w, h, layout, shape, g, r, playing, q, option):
-  PA.assist_too_early_(w, h, layout, shape, g, r, playing, q, option)
+def L.assist_too_early(w, h, layout, shape, g, r, playing, q, option, k):
+  PA.assist_too_early_(w, h, layout, shape, g, r, playing, q, option, k)
 
 # The display
 # ===========

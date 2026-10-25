@@ -1534,12 +1534,45 @@ function $game_first_safe(_layout_0, _shown_0, _ps_0) {
   return $game_first_safe_go(_ps_0, ($game_safe_here(_layout_0, _shown_0, _ps_0)), _layout_0, _shown_0);
 }
 
-function $game_safe_cell(_g_0) {
+function $game_any_shown(_shown_0, _ps_0) {
+  if (_ps_0.$ === "Nil") {
+    return false;
+  } else {
+    const _p_0 = _ps_0["head"];
+    const _t_0 = _ps_0["tail"];
+    const _x_0 = ($board_at(false, _shown_0, _p_0));
+    const _x_1 = ($game_any_shown(_shown_0, _t_0));
+    return (_x_0 || _x_1);
+  }
+}
+
+function $game_edges(_w_0, _h_0, _shown_0, _ps_0) {
+  if (_ps_0.$ === "Nil") {
+    return {$: "Nil"};
+  } else {
+    const _p_0 = _ps_0["head"];
+    const _t_0 = _ps_0["tail"];
+    return $List_filter_put(_p_0, ($game_edges(_w_0, _h_0, _shown_0, _t_0)), ($Bool_and(($Bool_not(($board_at(false, _shown_0, _p_0)))), ($game_any_shown(_shown_0, ($board_neighbours(_w_0, _h_0, _p_0)))))));
+  }
+}
+
+function $game_turn(_ps_0, _k_0) {
+  const _x_0 = ($List_length(_ps_0));
+  const _i_0 = ($Nat_mod(_k_0, nat_chk(_x_0 + 1)));
+  return $List_append(($List_drop(_ps_0, _i_0)), ($List_take(_ps_0, _i_0)));
+}
+
+function $game_safe_list(_w_0, _h_0, _shown_0, _k_0) {
+  const _cs_0 = ($board_cells(_w_0, _h_0));
+  return $List_append(($game_turn(($game_edges(_w_0, _h_0, _shown_0, _cs_0)), _k_0)), ($List_append(($game_turn(_cs_0, _k_0)), _cs_0)));
+}
+
+function $game_safe_cell(_g_0, _k_0) {
   const _w_0 = _g_0["w"];
   const _h_0 = _g_0["h"];
   const _layout_0 = _g_0["layout"];
   const _shown_0 = _g_0["shown"];
-  return $game_first_safe(_layout_0, _shown_0, ($board_cells(_w_0, _h_0)));
+  return $game_first_safe(_layout_0, _shown_0, ($game_safe_list(_w_0, _h_0, _shown_0, _k_0)));
 }
 
 function $game_lose(_g_0, _p_0) {
@@ -1560,25 +1593,25 @@ function $game_assist_safe(_m_0, _g_0) {
   }
 }
 
-function $game_assist_pick(_r_0, _g_0) {
+function $game_assist_pick(_r_0, _g_0, _k_0) {
   if (_r_0.$ === "Some") {
     const _q_0 = _r_0["value"];
     return $game_lose(_g_0, _q_0);
   } else {
-    return $game_assist_safe(($game_safe_cell(_g_0)), _g_0);
+    return $game_assist_safe(($game_safe_cell(_g_0, _k_0)), _g_0);
   }
 }
 
-function $game_assist_go(_playing_0, _g_0) {
+function $game_assist_go(_playing_0, _g_0, _k_0) {
   if (!_playing_0) {
     return _g_0;
   } else {
-    return $game_assist_pick(run_loop($solver_solve(($game_knowledge(_g_0)))), _g_0);
+    return $game_assist_pick(run_loop($solver_solve(($game_knowledge(_g_0)))), _g_0, _k_0);
   }
 }
 
-function $game_assist(_g_0) {
-  return $game_assist_go(($game_is_playing(($game_status(_g_0)))), _g_0);
+function $game_assist(_g_0, _k_0) {
+  return $game_assist_go(($game_is_playing(($game_status(_g_0)))), _g_0, _k_0);
 }
 
 function $game_step(_g_0, _a_0) {
@@ -1592,7 +1625,8 @@ function $game_step(_g_0, _a_0) {
     const _p_2 = _a_0["p"];
     return $game_flag(_g_0, _p_2);
   } else {
-    return $game_assist(_g_0);
+    const _k_0 = _a_0["k"];
+    return $game_assist(_g_0, _k_0);
   }
 }
 
@@ -1733,8 +1767,8 @@ function $flag(_g_0, _x_0, _y_0) {
   return $game_step(_g_0, {$: "Flag", "p": {$: "Pos", "x": _x_0, "y": _y_0}});
 }
 
-function $assist(_g_0) {
-  return $game_step(_g_0, {$: "Assist"});
+function $assist(_g_0, _k_0) {
+  return $game_step(_g_0, {$: "Assist", "k": _k_0});
 }
 
 function $tiles(_g_0) {
@@ -2212,12 +2246,16 @@ function $solver_loop_c13(_t_0,_found_0,_pl_0,_part_0,_ctx_0) {
   "game:safe_here": run_lib((a0,a1,a2) => run_loop($game_safe_here(a0,a1,a2)), 3),
   "game:first_safe.go": run_lib((a0,a1,a2,a3) => run_loop($game_first_safe_go(a0,a1,a2,a3)), 4),
   "game:first_safe": run_lib((a0,a1,a2) => run_loop($game_first_safe(a0,a1,a2)), 3),
-  "game:safe_cell": run_lib((a0) => run_loop($game_safe_cell(a0)), 1),
+  "game:any_shown": run_lib((a0,a1) => run_loop($game_any_shown(a0,a1)), 2),
+  "game:edges": run_lib((a0,a1,a2,a3) => run_loop($game_edges(nat_in(a0),nat_in(a1),a2,a3)), 4),
+  "game:turn": run_lib((a0,a1) => run_loop($game_turn(a0,nat_in(a1))), 2),
+  "game:safe_list": run_lib((a0,a1,a2,a3) => run_loop($game_safe_list(nat_in(a0),nat_in(a1),a2,nat_in(a3))), 4),
+  "game:safe_cell": run_lib((a0,a1) => run_loop($game_safe_cell(a0,nat_in(a1))), 2),
   "game:lose": run_lib((a0,a1) => run_loop($game_lose(a0,a1)), 2),
   "game:assist.safe": run_lib((a0,a1) => run_loop($game_assist_safe(a0,a1)), 2),
-  "game:assist.pick": run_lib((a0,a1) => run_loop($game_assist_pick(a0,a1)), 2),
-  "game:assist.go": run_lib((a0,a1) => run_loop($game_assist_go(a0,a1)), 2),
-  "game:assist": run_lib((a0) => run_loop($game_assist(a0)), 1),
+  "game:assist.pick": run_lib((a0,a1,a2) => run_loop($game_assist_pick(a0,a1,nat_in(a2))), 3),
+  "game:assist.go": run_lib((a0,a1,a2) => run_loop($game_assist_go(a0,a1,nat_in(a2))), 3),
+  "game:assist": run_lib((a0,a1) => run_loop($game_assist(a0,nat_in(a1))), 2),
   "game:step": run_lib((a0,a1) => run_loop($game_step(a0,a1)), 2),
   "game:mark.why": run_lib((a0,a1) => run_loop($game_mark_why(a0,a1)), 2),
   "game:mark": run_lib((a0,a1) => run_loop($game_mark(a0,a1)), 2),
@@ -2236,7 +2274,7 @@ function $solver_loop_c13(_t_0,_found_0,_pl_0,_part_0,_ctx_0) {
   "reveal": run_lib((a0,a1,a2) => run_loop($reveal(a0,nat_in(a1),nat_in(a2))), 3),
   "chord": run_lib((a0,a1,a2) => run_loop($chord(a0,nat_in(a1),nat_in(a2))), 3),
   "flag": run_lib((a0,a1,a2) => run_loop($flag(a0,nat_in(a1),nat_in(a2))), 3),
-  "assist": run_lib((a0) => run_loop($assist(a0)), 1),
+  "assist": run_lib((a0,a1) => run_loop($assist(a0,nat_in(a1))), 2),
   "tiles": run_lib((a0) => run_loop($tiles(a0)), 1),
   "status": run_lib((a0) => run_loop($status(a0)), 1),
   "flags": run_lib((a0) => run_loop($flags(a0)), 1),

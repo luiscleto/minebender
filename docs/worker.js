@@ -37,7 +37,7 @@ onmessage = ({data: m}) => {
       break;
     case "chord": if (game) game = UI.chord(game, m.x, m.y); break;
     case "flag": if (game) game = UI.flag(game, m.x, m.y); break;
-    case "assist": if (game) game = UI.assist(game); break;
+    case "assist": if (game) game = UI.assist(game, crypto.getRandomValues(new Uint32Array(1))[0]); break;
   }
   postMessage({id: m.id, ...view()});
 };

@@ -637,8 +637,8 @@ def inv_assist.pick(+w: Nat, +h: Nat, +layout: T.Grid(Bool), +shown: T.Grid(Bool
   +won: {L.is_won(status) == G.all_safe(w, h, layout, shown) : Bool},
   +cm: {calm(status, w, h, layout, shown) == True{} : Bool},
   +cl: {closed(w, h, layout, shown) == True{} : Bool},
-  +st: {status == T.Playing{} : T.Status}, +r: Maybe<&2, T.Pos>) ->
-  Inv(w, h, layout, G.assist.pick(r, G.Game{w, h, layout, shown, flags, status})):
+  +st: {status == T.Playing{} : T.Status}, +r: Maybe<&2, T.Pos>, +k: Nat) ->
+  Inv(w, h, layout, G.assist.pick(r, G.Game{w, h, layout, shown, flags, status}, k)):
   match r:
     case Some{q}:
       ({==}, ({==}, ({==}, (sh,
@@ -647,21 +647,21 @@ def inv_assist.pick(+w: Nat, +h: Nat, +layout: T.Grid(Bool), +shown: T.Grid(Bool
         ({==}, cl))))))
     case None{}:
       inv_assist.safe(w, h, layout, shown, flags, status, sh, won, cm, cl,
-        G.safe_cell(G.Game{w, h, layout, shown, flags, status}))
+        G.safe_cell(G.Game{w, h, layout, shown, flags, status}, k))
 
 def inv_assist.go(+w: Nat, +h: Nat, +layout: T.Grid(Bool), +shown: T.Grid(Bool), +flags: List<&2, T.Pos>,
   +status: T.Status, +sh: {B.shaped(Bool, w, h, shown) == True{} : Bool},
   +won: {L.is_won(status) == G.all_safe(w, h, layout, shown) : Bool},
   +cm: {calm(status, w, h, layout, shown) == True{} : Bool},
-  +cl: {closed(w, h, layout, shown) == True{} : Bool}, +c: Bool, ce: {G.is_playing(status) == c : Bool}) ->
-  Inv(w, h, layout, G.assist.go(c, G.Game{w, h, layout, shown, flags, status})):
+  +cl: {closed(w, h, layout, shown) == True{} : Bool}, +c: Bool, ce: {G.is_playing(status) == c : Bool}, +k: Nat) ->
+  Inv(w, h, layout, G.assist.go(c, G.Game{w, h, layout, shown, flags, status}, k)):
   match c:
     case False{}:
       ({==}, ({==}, ({==}, (sh, (won, (cm, cl))))))
     case True{}:
       +g0 = {G.Game{w, h, layout, shown, flags, status} : G.Game}
       inv_assist.pick(w, h, layout, shown, flags, status, sh, won, cm, cl, playing_is(status, ce),
-        S.solve(G.knowledge(g0)))
+        S.solve(G.knowledge(g0)), k)
 
 # Over a game in its general form.
 law inv_reveal:
@@ -732,9 +732,10 @@ law inv_assist:
   for +layout: T.Grid(Bool)
   for +g: G.Game
   for inv: Inv(w, h, layout, g)
-  Inv(w, h, layout, G.assist(g))
+  for +k: Nat
+  Inv(w, h, layout, G.assist(g, k))
 
-def inv_assist(w, h, layout, g, inv):
+def inv_assist(w, h, layout, g, inv, k):
   match g:
     case G.Game{gw, gh, gl, shown, flags, status}:
       match inv:
@@ -749,11 +750,11 @@ def inv_assist(w, h, layout, g, inv):
                         case (won, f3):
                           match f3:
                             case (cm, cl):
-                              %Equal.sym(Nat, gw, w, ew) : Inv(w, h, layout, G.assist(G.Game{_, gh, gl, shown, flags, status}))
-                              %Equal.sym(Nat, gh, h, eh) : Inv(w, h, layout, G.assist(G.Game{w, _, gl, shown, flags, status}))
+                              %Equal.sym(Nat, gw, w, ew) : Inv(w, h, layout, G.assist(G.Game{_, gh, gl, shown, flags, status}, k))
+                              %Equal.sym(Nat, gh, h, eh) : Inv(w, h, layout, G.assist(G.Game{w, _, gl, shown, flags, status}, k))
                               %Equal.sym(T.Grid(Bool), gl, layout, el) :
-                                Inv(w, h, layout, G.assist(G.Game{w, h, _, shown, flags, status}))
-                              inv_assist.go(w, h, layout, shown, flags, status, sh, won, cm, cl, G.is_playing(status), {==})
+                                Inv(w, h, layout, G.assist(G.Game{w, h, _, shown, flags, status}, k))
+                              inv_assist.go(w, h, layout, shown, flags, status, sh, won, cm, cl, G.is_playing(status), {==}, k)
 
 law inv_chord:
   for +w: Nat
@@ -788,8 +789,8 @@ def inv_step(w, h, layout, g, inv, a):
       inv_chord(w, h, layout, G.chord_targets(g, p), g, inv)
     case T.Flag{p}:
       inv_flag(w, h, layout, g, inv, p)
-    case T.Assist{}:
-      inv_assist(w, h, layout, g, inv)
+    case T.Assist{k}:
+      inv_assist(w, h, layout, g, inv, k)
 
 law inv_play:
   for +w: Nat

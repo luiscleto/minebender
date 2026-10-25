@@ -438,22 +438,23 @@ def assist_mono.safe(+g: G.Game, +q: T.Pos, s: {B.at(Bool, False{}, shown_of(g),
     case Some{p}:
       open_mono(g, p, q, s)
 
-def assist_mono.pick(+r: Maybe<&2, T.Pos>, +g: G.Game, +q: T.Pos, s: {B.at(Bool, False{}, shown_of(g), q) == True{} : Bool}) -> {B.at(Bool, False{}, shown_of(G.assist.pick(r, g)), q) == True{} : Bool}:
+def assist_mono.pick(+r: Maybe<&2, T.Pos>, +g: G.Game, +q: T.Pos, s: {B.at(Bool, False{}, shown_of(g), q) == True{} : Bool}, +k: Nat) ->
+  {B.at(Bool, False{}, shown_of(G.assist.pick(r, g, k)), q) == True{} : Bool}:
   match r:
     case Some{x}:
       match g:
         case G.Game{w, h, layout, shown, flags, status}:
           s
     case None{}:
-      assist_mono.safe(g, q, s, G.safe_cell(g))
+      assist_mono.safe(g, q, s, G.safe_cell(g, k))
 
-def assist_mono.go(+g: G.Game, +q: T.Pos, s: {B.at(Bool, False{}, shown_of(g), q) == True{} : Bool}, +c: Bool) ->
-  {B.at(Bool, False{}, shown_of(G.assist.go(c, g)), q) == True{} : Bool}:
+def assist_mono.go(+g: G.Game, +q: T.Pos, s: {B.at(Bool, False{}, shown_of(g), q) == True{} : Bool}, +c: Bool, +k: Nat) ->
+  {B.at(Bool, False{}, shown_of(G.assist.go(c, g, k)), q) == True{} : Bool}:
   match c:
     case False{}:
       s
     case True{}:
-      assist_mono.pick(S.solve(G.knowledge(g)), g, q, s)
+      assist_mono.pick(S.solve(G.knowledge(g)), g, q, s, k)
 
 law step_mono:
   for +g: G.Game
@@ -470,8 +471,8 @@ def step_mono(g, a, q, s):
       chord_mono(G.chord_targets(g, p), g, q, s)
     case T.Flag{p}:
       flag_mono.go(G.can_flag(g, p), g, p, q, s)
-    case T.Assist{}:
-      assist_mono.go(g, q, s, G.is_playing(G.status(g)))
+    case T.Assist{k}:
+      assist_mono.go(g, q, s, G.is_playing(G.status(g)), k)
 
 law inv_of:
   for +w: Nat

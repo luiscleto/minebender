@@ -10,12 +10,12 @@ import ./game.bend as G
 type Run is Data:
   Run{g: G.Game, moves: Nat, assists: Nat}
 
-def auto.pick(r: Maybe<&2, T.Pos>, g: G.Game, moves: Nat, assists: Nat) -> Run:
+def auto.pick(r: Maybe<&2, T.Pos>, g: G.Game, +moves: Nat, assists: Nat) -> Run:
   match r:
     case Some{p}:
       Run{G.step(g, T.Reveal{p}), 1n+moves, assists}
     case None{}:
-      Run{G.step(g, T.Assist{}), 1n+moves, 1n+assists}
+      Run{G.step(g, T.Assist{moves}), 1n+moves, 1n+assists}
 
 def auto.go(playing: Bool, +g: G.Game, moves: Nat, assists: Nat) -> Run:
   match playing:
@@ -73,7 +73,7 @@ def auto_step(r: Maybe<&2, T.Pos>, g: G.Game) -> G.Game:
     case Some{p}:
       G.step(g, T.Reveal{p})
     case None{}:
-      G.step(g, T.Assist{})
+      G.step(g, T.Assist{0n})
 
 def timed.go(fuel: Nat, +g: G.Game, playing: Bool) -> IO(Unit):
   match fuel:

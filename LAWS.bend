@@ -483,10 +483,11 @@ law assist_stuck:
   for r: Reachable(w, h, layout, g)
   for playing: {G.status(g) == T.Playing{} : T.Status}
   for stuck: Stuck(G.knowledge(g))
+  for k: Nat
   exs p: T.Pos
   {mine(layout, p) == False{} : Bool} &
   {hidden(G.knowledge(g), p) == True{} : Bool} &
-  {G.step(g, T.Assist{}) == G.open(g, p) : G.Game}
+  {G.step(g, T.Assist{k}) == G.open(g, p) : G.Game}
 
 # LAW: "Pressing the assist when some cell is provably safe loses, and shows
 # a provably safe cell; the knowledge is unchanged."
@@ -500,10 +501,11 @@ law assist_too_early:
   for playing: {G.status(g) == T.Playing{} : T.Status}
   for q: T.Pos
   for option: ProvablySafe(G.knowledge(g), q)
+  for k: Nat
   exs p: T.Pos
   ProvablySafe(G.knowledge(g), p) &
-  {G.status(G.step(g, T.Assist{})) == T.Lost{T.AssistTooEarly{p}} : T.Status} &
-  {G.knowledge(G.step(g, T.Assist{})) == G.knowledge(g) : T.Knowledge}
+  {G.status(G.step(g, T.Assist{k})) == T.Lost{T.AssistTooEarly{p}} : T.Status} &
+  {G.knowledge(G.step(g, T.Assist{k})) == G.knowledge(g) : T.Knowledge}
 
 # ==========================================================================
 # Laws: levels, as in Windows XP

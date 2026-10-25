@@ -23,11 +23,13 @@ type Seen is Data:
 type Knowledge is Data:
   Knowledge{w: Nat, h: Nat, mines: Nat, rows: Grid(Seen)}
 
+# What the player can do. The assist carries a random number, which picks
+# the cell it opens when the player is stuck.
 type Action is Data:
   Reveal{p: Pos}
   Chord{p: Pos}
   Flag{p: Pos}
-  Assist{}
+  Assist{k: Nat}
 
 # Why a game was lost: the player revealed the mine at p, or pressed the assist
 # while `safe` could have been revealed without guessing.
