@@ -11,14 +11,14 @@
     --face: #c0c0c0; --light: #fff; --dark: #808080; --line: #7b7b7b;
     --desk: linear-gradient(160deg, #3a6ea5, #245a8f 60%, #1d4a78);
     --title: linear-gradient(90deg, #0a246a, #3a6ea5);
-    --cs: 26px;
+    --cs: 26px; --gut: 16px; --chrome: 18px;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
   body {
     min-height: 100vh; background: var(--desk); color: #000;
     font: 14px/1.4 Tahoma, Verdana, "Segoe UI", system-ui, sans-serif;
-    display: flex; flex-direction: column; align-items: center; padding: 24px 16px;
+    display: flex; flex-direction: column; align-items: center; padding: 24px var(--gut);
   }
   .window {
     background: var(--face); max-width: 100%;
@@ -32,11 +32,11 @@
   }
   .titlebar svg { width: 14px; height: 14px; }
   .menu { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 2px; }
-  .menu button, .tools button, dialog button {
+  .menu button, .tools button, .view button, dialog button {
     font: inherit; background: var(--face); border: 0; padding: 3px 10px; cursor: pointer; color: #000;
     box-shadow: inset 1px 1px var(--light), inset -1px -1px #000, inset 2px 2px #dfdfdf, inset -2px -2px var(--dark);
   }
-  .menu button[aria-pressed="true"], .tools button[aria-pressed="true"], button:active {
+  .menu button[aria-pressed="true"], .tools button[aria-pressed="true"], button:active:not(:disabled) {
     box-shadow: inset 1px 1px #000, inset -1px -1px var(--light), inset 2px 2px var(--dark), inset -2px -2px #dfdfdf;
   }
   button:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
@@ -58,7 +58,18 @@
     box-shadow: 0 0 0 1px var(--dark), inset 2px 2px var(--light), inset -2px -2px var(--dark);
   }
   #face:active { box-shadow: 0 0 0 1px var(--dark), inset 2px 2px var(--dark); }
-  .wrap { overflow: auto; padding: 3px; max-width: calc(100vw - 32px - 18px); width: fit-content; margin: 0 auto; }
+  .wrap { overflow: auto; padding: 3px; max-width: calc(100vw - 2 * var(--gut) - var(--chrome)); width: fit-content; margin: 0 auto; }
+  .view { display: flex; justify-content: flex-end; gap: 4px; margin-top: 4px; }
+  .view button { width: 32px; height: 26px; padding: 0; font-size: 16px; line-height: 1; }
+  .view button:disabled { color: #8a8a8a; cursor: default; }
+  .view svg { display: block; margin: auto; }
+  /* Phones: thinner page margins and frame, so more board fits. */
+  @media (max-width: 520px) {
+    :root { --gut: 4px; --chrome: 14px; }
+    body { padding-top: 8px; }
+    .frame { padding: 4px; }
+    .top { margin-bottom: 4px; }
+  }
   #board {
     display: grid; grid-template-columns: repeat(var(--w), var(--cs)); width: max-content;
     touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
@@ -125,6 +136,11 @@
       <div class="lcd" id="time" aria-label="Seconds">000</div>
     </div>
     <div class="wrap sunken"><div id="board" role="grid" aria-label="Minefield"></div></div>
+    <div class="view">
+      <button id="rotate" title="Rotate the board a quarter turn" aria-label="Rotate the board"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13.2 8.6A5.2 5.2 0 1 1 11.6 4.2"/><path d="M12.6 1.4v3.4H9.2"/></svg></button>
+      <button id="zoomout" title="Smaller cells" aria-label="Smaller cells">−</button>
+      <button id="zoomin" title="Bigger cells" aria-label="Bigger cells">+</button>
+    </div>
   </div>
   <div class="tools">
     <button id="assist" title="Opens a cell when no safe cell can be deduced. Press it too early and you lose."><svg class="ico" id="wings" aria-hidden="true"></svg> Assist</button>
@@ -140,6 +156,7 @@
     <li>Reveal: click or tap. Flag: right-click or long-press, or switch on flag mode.</li>
     <li>Open around a number whose flags are all placed: double-click or double-tap it, or middle-click.</li>
     <li>New game: the face. Stats: best times, win rate and streaks for each board, kept in this browser.</li>
+    <li>Under the board: rotate it a quarter turn, or make the cells smaller or bigger. On a portrait screen, wide boards start rotated.</li>
   </ul>
   <h2>The assist</h2>
   <p>Press <svg class="ico" id="wings2" aria-hidden="true"></svg> Assist when you are stuck. If no hidden cell is provably safe from what you can see (the numbers and the
@@ -273,11 +290,36 @@ function showStats(key) {
 
 function lcd(n) { const s = String(Math.abs(Math.min(999, Math.max(-99, n)))).padStart(n < 0 ? 2 : 3, "0"); return n < 0 ? "-" + s : s; }
 
+// How the board is drawn: turned a quarter turn clockwise when `rot`, with
+// cells of --cs pixels. Only the drawing and tap coordinates change. A board
+// wider than tall is turned on a portrait screen unless the player chose
+// otherwise (remembered per board shape and screen orientation); the cell
+// size is automatic until the player zooms.
+let rot = false;
+const portrait = () => window.innerHeight > window.innerWidth;
+const rotKey = v => `${v.w}x${v.h}:${portrait() ? "portrait" : "landscape"}`;
+function wantRot(v) {
+  if (v.w === v.h) return false;
+  return (store.get("rotate") || {})[rotKey(v)] ?? (v.w > v.h && portrait());
+}
+const drawn = () => rot ? [V.h, V.w] : [V.w, V.h];
+// The game cell drawn at display index i.
+function cellOf(i) {
+  const dw = drawn()[0], dx = i % dw, dy = Math.floor(i / dw);
+  return rot ? {x: dy, y: V.h - 1 - dx} : {x: dx, y: dy};
+}
+const rootVar = k => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(k));
+
 function size() {
   if (!V) return;
-  const room = Math.min(window.innerWidth, 1400) - 32 - 30;
-  const cs = Math.max(24, Math.min(30, Math.floor(room / V.w)));
+  const room = Math.min(window.innerWidth, 1400) - 2 * (rootVar("--gut") || 16) - 24;
+  const cs = store.get("cell") || Math.max(24, Math.min(30, Math.floor(room / drawn()[0])));
   document.documentElement.style.setProperty("--cs", cs + "px");
+  $("rotate").disabled = V.w === V.h;
+}
+function zoom(d) {
+  store.set("cell", Math.max(16, Math.min(48, (rootVar("--cs") || 24) + d)));
+  size();
 }
 
 function build(w, h) {
@@ -292,10 +334,12 @@ function build(w, h) {
 }
 
 function draw(v) {
-  const resized = !V || V.w !== v.w || V.h !== v.h;
-  V = v;
-  if (resized) { build(v.w, v.h); size(); }
-  v.tiles.flat().forEach((t, i) => {
+  const r = wantRot(v);
+  const resized = !V || V.w !== v.w || V.h !== v.h || r !== rot;
+  V = v; rot = r;
+  if (resized) { build(...drawn()); size(); }
+  cells.forEach((el, i) => {
+    const {x, y} = cellOf(i), t = v.tiles[y][x];
     if (prev[i] === t) return;
     prev[i] = t;
     const [cls, html] = look(t);
@@ -354,8 +398,7 @@ let press = null;
 const cellAt = e => {
   const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".c");
   if (!el || !board.contains(el)) return null;
-  const i = +el.dataset.i;
-  return {x: i % V.w, y: Math.floor(i / V.w), el};
+  return {...cellOf(+el.dataset.i), el};
 };
 const down = (c, on) => { if (c && at(c.x, c.y) === "Covered") c.el.classList.toggle("down", on); };
 
@@ -424,7 +467,13 @@ $("custom").addEventListener("close", () => {
   const n = id => Math.max(0, Math.min(99999, Math.floor(+$(id).value || 0)));
   newGame({$: "Custom", w: n("cw"), h: n("ch"), mines: n("cm")});
 });
-window.addEventListener("resize", size);
+window.addEventListener("resize", () => { if (V && wantRot(V) !== rot) draw(V); else size(); });
+$("rotate").addEventListener("click", () => {
+  if (!V) return;
+  const all = store.get("rotate") || {}; all[rotKey(V)] = !rot; store.set("rotate", all); draw(V);
+});
+$("zoomout").addEventListener("click", () => zoom(-4));
+$("zoomin").addEventListener("click", () => zoom(4));
 
 newGame(store.get("level") || {$: "Beginner"});
 </script>

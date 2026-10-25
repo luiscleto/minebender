@@ -72,6 +72,9 @@ Reviewed one at a time by the user; never weaken or delete these without their c
   (localStorage, per board spec: five best times with dates, played/won/win %, current and longest
   streaks, Windows 7 style; a game abandoned after its first click counts as a loss, including a
   page closed mid-game, via a "pending" marker read on the next load).
+- How the board is drawn on screen: on a portrait screen a board wider than tall is drawn turned a
+  quarter turn (the player can rotate any non-square board, and zoom the cells from 16 to 48 px).
+  Only the drawing and the mapping from a tapped cell back to the game's (x, y) change.
 - Before the first click no game exists (mines are placed on the first reveal), so flags, chords and
   the assist do nothing until then; the board shown is `UI.idle`, Bend's display of an empty board.
 - Generation laws cover shape, count and first-click safety, not the distribution.
