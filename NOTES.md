@@ -34,6 +34,9 @@ Reviewed one at a time by the user; never weaken or delete these without their c
   `assist_stuck` and `assist_too_early` gained `for k: Nat` and use `T.Assist{k}`. Same guarantees,
   for every k. The number picks which safe cell opens when stuck (frontier first, from a random
   point), which the user asked for; that preference itself is not a law.
+- 2026-10-25 (after the UI went live): the display section: Tile type, tile, tile_of, is_covered,
+  display_play, display_blast, display_hint, display_mines (approved as drafted; display_mines kept
+  loose on purpose: every mine is visible after the game, not which XP tile it gets).
 
 ## Choices settled during review
 
@@ -50,8 +53,9 @@ Reviewed one at a time by the user; never weaken or delete these without their c
 
 ## Trust boundary (what the laws do not cover)
 
-- The screen is `G.display(g)`, a grid of tiles; the DRAFT display laws (end of LAWS.bend, awaiting
-  review) tie it to the knowledge, flags and status. What is *not* proven is the JavaScript between
+- The screen is `G.display(g)`, a grid of tiles; the display laws (end of LAWS.bend) tie it to the
+  knowledge, flags and status. Not pinned by them: which tile a mine gets after the game (XP style
+  in the code), and the crossed-out wrong flags after a loss. What is *not* proven is the JavaScript between
   that grid and the pixels: `docs/index.html` (draws the tile codes it is sent; turns clicks, taps and
   long-presses into Reveal/Chord/Flag/Assist) and `docs/worker.js` (holds the game, converts lists,
   feeds `crypto.getRandomValues` into `place_mines`). Neither decides anything about the rules; read
@@ -73,7 +77,7 @@ No case of a law passing while observed behaviour was wrong. Found during review
 
 ## Status (2026-10-25)
 
-All 25 approved laws, plus the 4 DRAFT display laws, are proven: `./check.sh` prints ALL PROOFS CHECK for `bend PROOF.bend` and for
+All 29 approved laws (25 game laws and 4 display laws) are proven: `./check.sh` prints ALL PROOFS CHECK for `bend PROOF.bend` and for
 `--verdict` (the Lean-proven BendTT kernel; needs Lean v4.34.0, installed with elan v4.2.4 into
 `~/.elan`, checksum verified against the GitHub release). Self-play (`selfplay.bend`) wins every test
 game.
@@ -87,7 +91,7 @@ bundler (`bend page.html -o dist`) was tried first, but it does not follow `new 
 game runs in a worker so a slow assist can never freeze the page (that was seconds before the solver
 rework, now well under a second). So the page is three static files and no bundler.
 
-Size: LAWS.bend ~660 lines (approved + the display draft) (user-owned); code ~1330 lines (types,
+Size: LAWS.bend ~660 lines (all approved) (user-owned); code ~1330 lines (types,
 board, game, solver); laws and proofs together ~12,900 lines across LAWS.bend, PROOF.bend and 16
 `proof_*.bend` lemma modules.
 
@@ -98,6 +102,14 @@ reviewed one by one (with plain-English and Bend for each). The code and proofs 
 gate is the checker. The user did need a Bend primer along the way (quantities `&1`/`&2`/`+`,
 templates, why loops become recursion over lists), and spotted several simplifications in the spec
 itself (`!=` instead of a helper, `not same` in `adjacent`, the `flags_hidden` law).
+
+Later rounds kept the same pattern. The display laws were drafted and proven while the user was
+away, then reviewed one by one after the fact and approved unchanged; the Tile type was shown in
+that review. For the solver rework and the assist's random pick, the user read neither code nor
+proofs: they asked for the standard published method, approved the one law-text change (`Assist{k}`)
+in prose, and judged the result by the live page and the reported timings. Beyond LAWS.bend, their
+main check was playing the game (which is how the slow assist and the top-left pick were found:
+behaviour the laws allowed but the user did not want, rather than behaviour a law got wrong).
 
 ## Where proofs got hard (Q3)
 

@@ -577,8 +577,6 @@ law gen_first_safe:
 # ==========================================================================
 # Laws: the display
 # ==========================================================================
-# DRAFT, written while the owner was away: awaiting review. Everything above
-# this section is approved.
 
 # What the screen shows at p.
 def tile(g: G.Game, p: T.Pos) -> T.Tile:
