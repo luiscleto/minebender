@@ -15,6 +15,16 @@ import ./board.bend as B
 # (unassigned). After each choice, the numbers around the cell and the
 # total mine count are checked against what can still be reached; a full
 # layout is checked for consistency before it counts.
+#
+# Speed comes from the order of the walk, the standard constraint-solving
+# approach to Minesweeper: the cells linked to c through numbers first,
+# nearest first, so a contradiction near c shows up before anything far
+# away is enumerated; then each other group of linked cells in turn, so
+# backtracking never mixes unrelated groups; then the cells next to no
+# number, rotated per search so the layouts found spread their mines and
+# rule out many cells at once. The order is a heuristic: the proofs only
+# need every cell to appear, so it runs before the plain order, whose cells
+# the walk then skips as already assigned.
 
 # A revealed cell, and for a number, the cells it counts.
 type Item is Data:
@@ -248,6 +258,24 @@ def dfs(todo: List<&2, Todo>, +part: T.Grid(Maybe<&2, Bool>), +ctx: Ctx) ->
         v => dfs.or(dfs.when(open_ok(p0, rel, n), x => dfs(rest, p0, ctx)),
           y => dfs.when(open_ok(p1, rel, n), z => dfs(rest, p1, ctx))))
 
+# The same search, carrying the mines t and unassigned cells f of the partial
+# layout instead of recounting the whole grid at every step. PROOF.bend
+# shows it answers exactly as dfs.
+def dfs2(todo: List<&2, Todo>, +part: T.Grid(Maybe<&2, Bool>), +t: Nat, +f: Nat, +ctx: Ctx) ->
+  Maybe<&2, T.Grid(Bool)>:
+  match todo:
+    case Nil{}:
+      leaf(ctx, fill(part))
+    case Todo{+c, +rel} <> +rest:
+      +p0 = B.set_at(Maybe<&2, Bool>, part, c, Some{False{}})
+      +p1 = B.set_at(Maybe<&2, Bool>, part, c, Some{True{}})
+      +n = ctx_n(ctx)
+      +f1 = Nat.sub(f, 1n)
+      dfs.free(is_none(look(part, c)),
+        u => dfs2(rest, part, t, f, ctx),
+        v => dfs.or(dfs.when(between(t, f1, n) && items_open(p0, rel), x => dfs2(rest, p0, t, f1, ctx)),
+          y => dfs.when(between(1n+t, f1, n) && items_open(p1, rel), z => dfs2(rest, p1, 1n+t, f1, ctx))))
+
 # The cells of a solve
 # --------------------
 
@@ -318,6 +346,141 @@ def fars(ts: List<&2, Todo>) -> List<&2, Todo>:
 def order(+ts: List<&2, Todo>) -> List<&2, Todo>:
   List.append(&2, Todo, nears(ts), fars(ts))
 
+# The order of a search
+# ----------------------
+
+def todo_c(t: Todo) -> T.Pos:
+  match t:
+    case Todo{c, rel}:
+      c
+
+# The numbers around each cell next to one; Nil elsewhere.
+def rel_grid(+w: Nat, +h: Nat, ts: List<&2, Todo>) -> T.Grid(List<&2, Item>):
+  match ts:
+    case Nil{}:
+      B.blank(List<&2, Item>, w, h, Nil{})
+    case Todo{c, rel} <> t:
+      B.set_at(List<&2, Item>, rel_grid(w, h, t), c, rel)
+
+# A breadth-first walk over cells linked by a number: the cells to visit,
+# the cells reached (latest first) and a grid of the cells reached.
+type Reach is Data:
+  Reach{queue: List<&2, T.Pos>, order: List<&2, T.Pos>, vis: T.Grid(Bool)}
+
+def reach.add.go(fresh: Bool, +p: T.Pos, queue: List<&2, T.Pos>, order: List<&2, T.Pos>, +vis: T.Grid(Bool)) -> Reach:
+  match fresh:
+    case True{}:
+      Reach{List.append(&2, T.Pos, queue, [p]), p <> order, B.set_at(Bool, vis, p, True{})}
+    case False{}:
+      Reach{queue, order, vis}
+
+# Reach p, if it is next to a number and not reached yet.
+def reach.add(+p: T.Pos, +relg: T.Grid(List<&2, Item>), r: Reach) -> Reach:
+  match r:
+    case Reach{queue, order, +vis}:
+      reach.add.go(Bool.not(B.at(Bool, True{}, vis, p))
+        && Bool.not(List.is_empty(&2, Item, B.at(List<&2, Item>, Nil{}, relg, p))), p, queue, order, vis)
+
+def reach.ns(ns: List<&2, T.Pos>, +relg: T.Grid(List<&2, Item>), r: Reach) -> Reach:
+  match ns:
+    case Nil{}:
+      r
+    case p <> t:
+      reach.ns(t, relg, reach.add(p, relg, r))
+
+def reach.items(rel: List<&2, Item>, +relg: T.Grid(List<&2, Item>), r: Reach) -> Reach:
+  match rel:
+    case Nil{}:
+      r
+    case Item{p, s, ns} <> t:
+      reach.items(t, relg, reach.ns(ns, relg, r))
+
+# Visit cells until none is left to visit (fuel: more than the cells).
+def reach.run(fuel: Nat, +relg: T.Grid(List<&2, Item>), r: Reach) -> Reach:
+  match fuel:
+    case 0n:
+      r
+    case 1n+f:
+      match r:
+        case Reach{queue, order, vis}:
+          match queue:
+            case Nil{}:
+              Reach{Nil{}, order, vis}
+            case +q <> rest:
+              reach.run(f, relg, reach.items(B.at(List<&2, Item>, Nil{}, relg, q), relg, Reach{rest, order, vis}))
+
+def reach.order(r: Reach) -> List<&2, T.Pos>:
+  match r:
+    case Reach{queue, order, vis}:
+      List.reverse(&2, T.Pos, order)
+
+def reach.start(+w: Nat, +h: Nat) -> Reach:
+  Reach{Nil{}, Nil{}, B.blank(Bool, w, h, False{})}
+
+# The cells linked to c through numbers, nearest first (none when c is next
+# to no number).
+def linked(+c: T.Pos, +w: Nat, +h: Nat, +fuel: Nat, +relg: T.Grid(List<&2, Item>)) -> List<&2, T.Pos>:
+  reach.order(reach.run(fuel, relg, reach.add(c, relg, reach.start(w, h))))
+
+def groups.go(ts: List<&2, Todo>, +fuel: Nat, +relg: T.Grid(List<&2, Item>), r: Reach) -> Reach:
+  match ts:
+    case Nil{}:
+      r
+    case Todo{c, rel} <> t:
+      groups.go(t, fuel, relg, reach.run(fuel, relg, reach.add(c, relg, r)))
+
+# The cells next to a number, one group of linked cells at a time.
+def groups(+w: Nat, +h: Nat, ts: List<&2, Todo>, +fuel: Nat, +relg: T.Grid(List<&2, Item>)) -> List<&2, T.Pos>:
+  reach.order(groups.go(ts, fuel, relg, reach.start(w, h)))
+
+def with_c(ts: List<&2, Todo>, +q: T.Pos) -> List<&2, Todo>:
+  match ts:
+    case Nil{}:
+      Nil{}
+    case +t <> rest:
+      List.filter.put(Todo, t, with_c(rest, q), B.same(todo_c(t), q))
+
+# The todos of ts for the cells qs, in the order of qs.
+def gather(qs: List<&2, T.Pos>, +ts: List<&2, Todo>) -> List<&2, Todo>:
+  match qs:
+    case Nil{}:
+      Nil{}
+    case q <> t:
+      List.append(&2, Todo, with_c(ts, q), gather(t, ts))
+
+# ts from its k-th element on, then the first k.
+def rot(+ts: List<&2, Todo>, +k: Nat) -> List<&2, Todo>:
+  List.append(&2, Todo, List.drop(&2, Todo, ts, k), List.take(&2, Todo, ts, k))
+
+# How far to rotate the far cells for c: searches for nearby cells start
+# about n cells apart, so their layouts mine different far cells.
+def spin(c: T.Pos, +w: Nat, +n: Nat, +nf: Nat) -> Nat:
+  match c:
+    case T.Pos{x, y}:
+      Nat.mod(Nat.mul(Nat.add(Nat.mul(y, w), x), Nat.add(n, 1n)), Nat.add(nf, 1n))
+
+# What every search of a solve shares: the cells next to a number and the
+# rest, the groups, the plain order, and the numbers around each cell.
+type Plan is Data:
+  Plan{near: List<&2, Todo>, far: List<&2, Todo>, nf: Nat, gq: List<&2, T.Pos>, base: List<&2, Todo>,
+    fuel: Nat, relg: T.Grid(List<&2, Item>)}
+
+def plan(+w: Nat, +h: Nat, +ts: List<&2, Todo>) -> Plan:
+  +near = nears(ts)
+  +far = fars(ts)
+  +fuel = Nat.add(List.length(&2, Todo, near), 1n)
+  +relg = rel_grid(w, h, near)
+  Plan{near, far, List.length(&2, Todo, far), groups(w, h, near, fuel, relg), order(ts), fuel, relg}
+
+# The order of the search for c.
+def plan_todo(+c: T.Pos, pl: Plan, +ctx: Ctx) -> List<&2, Todo>:
+  match pl:
+    case Plan{+near, far, +nf, gq, base, +fuel, +relg}:
+      match ctx:
+        case Ctx{+w, +h, +n, rows, items}:
+          List.append(&2, Todo, gather(List.append(&2, T.Pos, linked(c, w, h, fuel, relg), gq), near),
+            List.append(&2, Todo, rot(far, spin(c, w, n, nf)), base))
+
 # The outer loop
 # --------------
 
@@ -328,9 +491,11 @@ def covered(ls: List<&2, T.Grid(Bool)>, +c: T.Pos) -> Bool:
     case l <> t:
       B.mine(l, c) || covered(t, c)
 
-def search(+c: T.Pos, todo: List<&2, Todo>, +part: T.Grid(Maybe<&2, Bool>), ctx: Ctx) ->
+# A consistent layout with a mine on c, if there is one.
+def search(+c: T.Pos, +pl: Plan, +part: T.Grid(Maybe<&2, Bool>), +ctx: Ctx) ->
   Maybe<&2, T.Grid(Bool)>:
-  dfs(todo, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), ctx)
+  +p = B.set_at(Maybe<&2, Bool>, part, c, Some{True{}})
+  dfs2(plan_todo(c, pl, ctx), p, part_true(p), part_none(p), ctx)
 
 def loop.if(b: Bool, yes: Unit -> Maybe<&2, T.Pos>, no: Unit -> Maybe<&2, T.Pos>) ->
   Maybe<&2, T.Pos>:
@@ -350,16 +515,16 @@ def loop.found(r: Maybe<&2, T.Grid(Bool)>, c: T.Pos,
 
 # The first cell of hs that no consistent layout mines, given layouts
 # `found` already shown consistent.
-def loop(hs: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +todo: List<&2, Todo>,
+def loop(hs: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +pl: Plan,
   +part: T.Grid(Maybe<&2, Bool>), +ctx: Ctx) -> Maybe<&2, T.Pos>:
   match hs:
     case Nil{}:
       None{}
     case +c <> +t:
       loop.if(covered(found, c),
-        u => loop(t, found, todo, part, ctx),
-        v => loop.found(search(c, todo, part, ctx), c,
-          l => loop(t, l <> found, todo, part, ctx)))
+        u => loop(t, found, pl, part, ctx),
+        v => loop.found(search(c, pl, part, ctx), c,
+          l => loop(t, l <> found, pl, part, ctx)))
 
 def solve.go(ok: Bool, +hs: List<&2, T.Pos>, +w: Nat, +h: Nat, n: Nat,
   +rows: T.Grid(T.Seen)) -> Maybe<&2, T.Pos>:
@@ -368,7 +533,7 @@ def solve.go(ok: Bool, +hs: List<&2, T.Pos>, +w: Nat, +h: Nat, n: Nat,
       List.head(&2, T.Pos, hs)
     case True{}:
       +its = items(w, h, rows, B.cells(w, h))
-      loop(hs, Nil{}, order(todos(its, hs)), start(rows), Ctx{w, h, n, rows, its})
+      loop(hs, Nil{}, plan(w, h, todos(its, hs)), start(rows), Ctx{w, h, n, rows, its})
 
 # A provably safe hidden cell, or None when every hidden cell might hold a
 # mine.

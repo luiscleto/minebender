@@ -656,6 +656,22 @@ function $solver_dfs(_todo_0, _part_0, _ctx_0) {
   }
 }
 
+function $solver_dfs2(_todo_0, _part_0, _t_0, _f_0, _ctx_0) {
+  if (_todo_0.$ === "Nil") {
+    return $solver_leaf(_ctx_0, ($solver_fill(_part_0)));
+  } else {
+    const _t_1 = _todo_0["head"];
+    const _c_0 = _t_1["c"];
+    const _rel_0 = _t_1["rel"];
+    const _rest_0 = _todo_0["tail"];
+    const _p0_0 = ($board_set_at(_part_0, _c_0, {$: "Some", "value": false}));
+    const _p1_0 = ($board_set_at(_part_0, _c_0, {$: "Some", "value": true}));
+    const _n_0 = ($solver_ctx_n(_ctx_0));
+    const _f1_0 = (_f_0 < 1 ? 0 : _f_0 - 1);
+    return $solver_dfs_free(($solver_is_none(($solver_look(_part_0, _c_0)))), run_clo($solver_dfs2_c6(_rest_0,_part_0,_t_0,_f_0,_ctx_0)), run_clo($solver_dfs2_c7(_t_0,_f1_0,_n_0,_p0_0,_rel_0,_rest_0,_ctx_0,_p1_0)));
+  }
+}
+
 function $solver_is_hidden(_s_0) {
   if (_s_0.$ === "Hidden") {
     return true;
@@ -738,6 +754,205 @@ function $solver_order(_ts_0) {
   return $List_append(($solver_nears(_ts_0)), ($solver_fars(_ts_0)));
 }
 
+function $solver_todo_c(_t_0) {
+  const _c_0 = _t_0["c"];
+  return _c_0;
+}
+
+function $solver_rel_grid(_w_0, _h_0, _ts_0) {
+  if (_ts_0.$ === "Nil") {
+    return $board_blank(_w_0, _h_0, {$: "Nil"});
+  } else {
+    const _t_0 = _ts_0["head"];
+    const _c_0 = _t_0["c"];
+    const _rel_0 = _t_0["rel"];
+    const _t_1 = _ts_0["tail"];
+    return $board_set_at(($solver_rel_grid(_w_0, _h_0, _t_1)), _c_0, _rel_0);
+  }
+}
+
+function $solver_reach_add_go(_fresh_0, _p_0, _queue_0, _order_0, _vis_0) {
+  if (_fresh_0) {
+    return {$: "Reach", "queue": ($List_append(_queue_0, {$: "Con", "head": _p_0, "tail": {$: "Nil"}})), "order": {$: "Con", "head": _p_0, "tail": _order_0}, "vis": ($board_set_at(_vis_0, _p_0, true))};
+  } else {
+    return {$: "Reach", "queue": _queue_0, "order": _order_0, "vis": _vis_0};
+  }
+}
+
+function $solver_reach_add(_p_0, _relg_0, _r_0) {
+  const _queue_0 = _r_0["queue"];
+  const _order_0 = _r_0["order"];
+  const _vis_0 = _r_0["vis"];
+  return $solver_reach_add_go(($Bool_and(($Bool_not(($board_at(true, _vis_0, _p_0)))), ($Bool_not(($List_is_empty(($board_at({$: "Nil"}, _relg_0, _p_0)))))))), _p_0, _queue_0, _order_0, _vis_0);
+}
+
+function $solver_reach_ns($0, $1, $2) {
+  for (;;) {
+    {
+      const _ns_0 = $0;
+      const _relg_0 = $1;
+      const _r_0 = $2;
+      if (_ns_0.$ === "Nil") {
+        return _r_0;
+      } else {
+        const _p_0 = _ns_0["head"];
+        const _t_0 = _ns_0["tail"];
+        $0 = _t_0;
+        $1 = _relg_0;
+        $2 = ($solver_reach_add(_p_0, _relg_0, _r_0));
+        continue;
+      }
+    }
+  }
+}
+
+function $solver_reach_items($0, $1, $2) {
+  for (;;) {
+    {
+      const _rel_0 = $0;
+      const _relg_0 = $1;
+      const _r_0 = $2;
+      if (_rel_0.$ === "Nil") {
+        return _r_0;
+      } else {
+        const _t_0 = _rel_0["head"];
+        const _ns_0 = _t_0["ns"];
+        const _t_1 = _rel_0["tail"];
+        $0 = _t_1;
+        $1 = _relg_0;
+        $2 = ($solver_reach_ns(_ns_0, _relg_0, _r_0));
+        continue;
+      }
+    }
+  }
+}
+
+function $solver_reach_run($0, $1, $2) {
+  for (;;) {
+    {
+      const _fuel_0 = $0;
+      const _relg_0 = $1;
+      const _r_0 = $2;
+      if (_fuel_0 === 0) {
+        return _r_0;
+      } else {
+        const _f_0 = (_fuel_0 - 1);
+        const _t_0 = _r_0["queue"];
+        if (_t_0.$ === "Nil") {
+          const _order_0 = _r_0["order"];
+          const _vis_0 = _r_0["vis"];
+          return {$: "Reach", "queue": {$: "Nil"}, "order": _order_0, "vis": _vis_0};
+        } else {
+          const _q_0 = _t_0["head"];
+          const _rest_0 = _t_0["tail"];
+          const _order_1 = _r_0["order"];
+          const _vis_1 = _r_0["vis"];
+          $0 = _f_0;
+          $1 = _relg_0;
+          $2 = ($solver_reach_items(($board_at({$: "Nil"}, _relg_0, _q_0)), _relg_0, {$: "Reach", "queue": _rest_0, "order": _order_1, "vis": _vis_1}));
+          continue;
+        }
+      }
+    }
+  }
+}
+
+function $solver_reach_order(_r_0) {
+  const _order_0 = _r_0["order"];
+  return $List_reverse(_order_0);
+}
+
+function $solver_reach_start(_w_0, _h_0) {
+  return {$: "Reach", "queue": {$: "Nil"}, "order": {$: "Nil"}, "vis": ($board_blank(_w_0, _h_0, false))};
+}
+
+function $solver_linked(_c_0, _w_0, _h_0, _fuel_0, _relg_0) {
+  return $solver_reach_order(($solver_reach_run(_fuel_0, _relg_0, ($solver_reach_add(_c_0, _relg_0, ($solver_reach_start(_w_0, _h_0)))))));
+}
+
+function $solver_groups_go($0, $1, $2, $3) {
+  for (;;) {
+    {
+      const _ts_0 = $0;
+      const _fuel_0 = $1;
+      const _relg_0 = $2;
+      const _r_0 = $3;
+      if (_ts_0.$ === "Nil") {
+        return _r_0;
+      } else {
+        const _t_0 = _ts_0["head"];
+        const _c_0 = _t_0["c"];
+        const _t_1 = _ts_0["tail"];
+        $0 = _t_1;
+        $1 = _fuel_0;
+        $2 = _relg_0;
+        $3 = ($solver_reach_run(_fuel_0, _relg_0, ($solver_reach_add(_c_0, _relg_0, _r_0))));
+        continue;
+      }
+    }
+  }
+}
+
+function $solver_groups(_w_0, _h_0, _ts_0, _fuel_0, _relg_0) {
+  return $solver_reach_order(($solver_groups_go(_ts_0, _fuel_0, _relg_0, ($solver_reach_start(_w_0, _h_0)))));
+}
+
+function $solver_with_c(_ts_0, _q_0) {
+  if (_ts_0.$ === "Nil") {
+    return {$: "Nil"};
+  } else {
+    const _t_0 = _ts_0["head"];
+    const _rest_0 = _ts_0["tail"];
+    return $List_filter_put(_t_0, ($solver_with_c(_rest_0, _q_0)), ($board_same(($solver_todo_c(_t_0)), _q_0)));
+  }
+}
+
+function $solver_gather(_qs_0, _ts_0) {
+  if (_qs_0.$ === "Nil") {
+    return {$: "Nil"};
+  } else {
+    const _q_0 = _qs_0["head"];
+    const _t_0 = _qs_0["tail"];
+    return $List_append(($solver_with_c(_ts_0, _q_0)), ($solver_gather(_t_0, _ts_0)));
+  }
+}
+
+function $solver_rot(_ts_0, _k_0) {
+  return $List_append(($List_drop(_ts_0, _k_0)), ($List_take(_ts_0, _k_0)));
+}
+
+function $solver_spin(_c_0, _w_0, _n_0, _nf_0) {
+  const _x_0 = _c_0["x"];
+  const _y_0 = _c_0["y"];
+  const _x_1 = nat_chk(_y_0 * _w_0);
+  const _x_2 = nat_chk(_x_1 + _x_0);
+  const _x_3 = nat_chk(_n_0 + 1);
+  return $Nat_mod(nat_chk(_x_2 * _x_3), nat_chk(_nf_0 + 1));
+}
+
+function $solver_plan(_w_0, _h_0, _ts_0) {
+  const _near_0 = ($solver_nears(_ts_0));
+  const _far_0 = ($solver_fars(_ts_0));
+  const _x_0 = ($List_length(_near_0));
+  const _fuel_0 = nat_chk(_x_0 + 1);
+  const _relg_0 = ($solver_rel_grid(_w_0, _h_0, _near_0));
+  return {$: "Plan", "near": _near_0, "far": _far_0, "nf": ($List_length(_far_0)), "gq": ($solver_groups(_w_0, _h_0, _near_0, _fuel_0, _relg_0)), "base": ($solver_order(_ts_0)), "fuel": _fuel_0, "relg": _relg_0};
+}
+
+function $solver_plan_todo(_c_0, _pl_0, _ctx_0) {
+  const _near_0 = _pl_0["near"];
+  const _far_0 = _pl_0["far"];
+  const _nf_0 = _pl_0["nf"];
+  const _gq_0 = _pl_0["gq"];
+  const _base_0 = _pl_0["base"];
+  const _fuel_0 = _pl_0["fuel"];
+  const _relg_0 = _pl_0["relg"];
+  const _w_0 = _ctx_0["w"];
+  const _h_0 = _ctx_0["h"];
+  const _n_0 = _ctx_0["n"];
+  return $List_append(($solver_gather(($List_append(($solver_linked(_c_0, _w_0, _h_0, _fuel_0, _relg_0)), _gq_0)), _near_0)), ($List_append(($solver_rot(_far_0, ($solver_spin(_c_0, _w_0, _n_0, _nf_0)))), _base_0)));
+}
+
 function $solver_covered(_ls_0, _c_0) {
   if (_ls_0.$ === "Nil") {
     return false;
@@ -750,8 +965,9 @@ function $solver_covered(_ls_0, _c_0) {
   }
 }
 
-function $solver_search(_c_0, _todo_0, _part_0, _ctx_0) {
-  return $solver_dfs(_todo_0, ($board_set_at(_part_0, _c_0, {$: "Some", "value": true})), _ctx_0);
+function $solver_search(_c_0, _pl_0, _part_0, _ctx_0) {
+  const _p_0 = ($board_set_at(_part_0, _c_0, {$: "Some", "value": true}));
+  return $solver_dfs2(($solver_plan_todo(_c_0, _pl_0, _ctx_0)), _p_0, ($solver_part_true(_p_0)), ($solver_part_none(_p_0)), _ctx_0);
 }
 
 function $solver_loop_if(_b_0, _yes_0, _no_0) {
@@ -771,13 +987,13 @@ function $solver_loop_found(_r_0, _c_0, _k_0) {
   }
 }
 
-function $solver_loop(_hs_0, _found_0, _todo_0, _part_0, _ctx_0) {
+function $solver_loop(_hs_0, _found_0, _pl_0, _part_0, _ctx_0) {
   if (_hs_0.$ === "Nil") {
     return {$: "None"};
   } else {
     const _c_0 = _hs_0["head"];
     const _t_0 = _hs_0["tail"];
-    return $solver_loop_if(($solver_covered(_found_0, _c_0)), run_clo($solver_loop_c6(_t_0,_found_0,_todo_0,_part_0,_ctx_0)), run_clo($solver_loop_c7(_c_0,_todo_0,_part_0,_ctx_0,_t_0,_found_0)));
+    return $solver_loop_if(($solver_covered(_found_0, _c_0)), run_clo($solver_loop_c11(_t_0,_found_0,_pl_0,_part_0,_ctx_0)), run_clo($solver_loop_c12(_c_0,_pl_0,_part_0,_ctx_0,_t_0,_found_0)));
   }
 }
 
@@ -786,7 +1002,7 @@ function $solver_solve_go(_ok_0, _hs_0, _w_0, _h_0, _n_0, _rows_0) {
     return $List_head(_hs_0);
   } else {
     const _its_0 = ($solver_items(_w_0, _h_0, _rows_0, ($board_cells(_w_0, _h_0))));
-    return $solver_loop(_hs_0, {$: "Nil"}, ($solver_order(($solver_todos(_its_0, _hs_0)))), ($solver_start(_rows_0)), {$: "Ctx", "w": _w_0, "h": _h_0, "n": _n_0, "rows": _rows_0, "items": _its_0});
+    return $solver_loop(_hs_0, {$: "Nil"}, ($solver_plan(_w_0, _h_0, ($solver_todos(_its_0, _hs_0)))), ($solver_start(_rows_0)), {$: "Ctx", "w": _w_0, "h": _h_0, "n": _n_0, "rows": _rows_0, "items": _its_0});
   }
 }
 
@@ -1664,6 +1880,52 @@ function $List_is_empty(_xs_0) {
   }
 }
 
+function $List_reverse(_xs_0) {
+  return $List_reverse_go(_xs_0, {$: "Nil"});
+}
+
+function $List_drop($0, $1) {
+  for (;;) {
+    {
+      const _xs_0 = $0;
+      const _n_0 = $1;
+      if (_xs_0.$ === "Nil") {
+        return {$: "Nil"};
+      } else {
+        const _h_0 = _xs_0["head"];
+        const _t_0 = _xs_0["tail"];
+        if (_n_0 === 0) {
+          return {$: "Con", "head": _h_0, "tail": _t_0};
+        } else {
+          const _p_0 = (_n_0 - 1);
+          $0 = _t_0;
+          $1 = _p_0;
+          continue;
+        }
+      }
+    }
+  }
+}
+
+function $List_take(_xs_0, _n_0) {
+  if (_xs_0.$ === "Nil") {
+    return {$: "Nil"};
+  } else {
+    const _h_0 = _xs_0["head"];
+    const _t_0 = _xs_0["tail"];
+    if (_n_0 === 0) {
+      return {$: "Nil"};
+    } else {
+      const _p_0 = (_n_0 - 1);
+      return {$: "Con", "head": _h_0, "tail": ($List_take(_t_0, _p_0))};
+    }
+  }
+}
+
+function $Nat_mod(_a_0, _b_0) {
+  return $Pair_snd(nat_divmod(_a_0, _b_0));
+}
+
 function $List_head(_xs_0) {
   if (_xs_0.$ === "Nil") {
     return {$: "None"};
@@ -1671,10 +1933,6 @@ function $List_head(_xs_0) {
     const _h_0 = _xs_0["head"];
     return {$: "Some", "value": _h_0};
   }
-}
-
-function $Nat_mod(_a_0, _b_0) {
-  return $Pair_snd(nat_divmod(_a_0, _b_0));
 }
 
 function $List_tail(_xs_0) {
@@ -1719,6 +1977,24 @@ function $List_range_go($0, $1) {
   }
 }
 
+function $List_reverse_go($0, $1) {
+  for (;;) {
+    {
+      const _xs_0 = $0;
+      const _acc_0 = $1;
+      if (_xs_0.$ === "Nil") {
+        return _acc_0;
+      } else {
+        const _h_0 = _xs_0["head"];
+        const _t_0 = _xs_0["tail"];
+        $0 = _t_0;
+        $1 = {$: "Con", "head": _h_0, "tail": _acc_0};
+        continue;
+      }
+    }
+  }
+}
+
 function $Pair_snd(_p_0) {
   const _b_0 = _p_0["snd"];
   return _b_0;
@@ -1749,19 +2025,44 @@ function $solver_dfs_c5(_rest_0,_p1_0,_ctx_0) {
     return $solver_dfs(_rest_0, _p1_0, _ctx_0);
   }
 }
-function $solver_loop_c6(_t_0,_found_0,_todo_0,_part_0,_ctx_0) {
+function $solver_dfs2_c6(_rest_0,_part_0,_t_0,_f_0,_ctx_0) {
   return (_x_0) => {
-    return $solver_loop(_t_0, _found_0, _todo_0, _part_0, _ctx_0);
+    return $solver_dfs2(_rest_0, _part_0, _t_0, _f_0, _ctx_0);
   }
 }
-function $solver_loop_c7(_c_0,_todo_0,_part_0,_ctx_0,_t_0,_found_0) {
+function $solver_dfs2_c7(_t_0,_f1_0,_n_0,_p0_0,_rel_0,_rest_0,_ctx_0,_p1_0) {
   return (_x_1) => {
-    return $solver_loop_found(run_loop($solver_search(_c_0, _todo_0, _part_0, _ctx_0)), _c_0, run_clo($solver_loop_c8(_t_0,_found_0,_todo_0,_part_0,_ctx_0)));
+    return $solver_dfs_or(run_loop($solver_dfs_when(($Bool_and(($solver_between(_t_0, _f1_0, _n_0)), ($solver_items_open(_p0_0, _rel_0)))), run_clo($solver_dfs2_c8(_rest_0,_p0_0,_t_0,_f1_0,_ctx_0)))), run_clo($solver_dfs2_c9(_t_0,_f1_0,_n_0,_p1_0,_rel_0,_rest_0,_ctx_0)));
   }
 }
-function $solver_loop_c8(_t_0,_found_0,_todo_0,_part_0,_ctx_0) {
+function $solver_dfs2_c8(_rest_0,_p0_0,_t_0,_f1_0,_ctx_0) {
   return (_x_2) => {
-    return $solver_loop(_t_0, {$: "Con", "head": _x_2, "tail": _found_0}, _todo_0, _part_0, _ctx_0);
+    return $solver_dfs2(_rest_0, _p0_0, _t_0, _f1_0, _ctx_0);
+  }
+}
+function $solver_dfs2_c9(_t_0,_f1_0,_n_0,_p1_0,_rel_0,_rest_0,_ctx_0) {
+  return (_x_3) => {
+    return $solver_dfs_when(($Bool_and(($solver_between(nat_chk(_t_0 + 1), _f1_0, _n_0)), ($solver_items_open(_p1_0, _rel_0)))), run_clo($solver_dfs2_c10(_rest_0,_p1_0,_t_0,_f1_0,_ctx_0)));
+  }
+}
+function $solver_dfs2_c10(_rest_0,_p1_0,_t_0,_f1_0,_ctx_0) {
+  return (_x_4) => {
+    return $solver_dfs2(_rest_0, _p1_0, nat_chk(_t_0 + 1), _f1_0, _ctx_0);
+  }
+}
+function $solver_loop_c11(_t_0,_found_0,_pl_0,_part_0,_ctx_0) {
+  return (_x_0) => {
+    return $solver_loop(_t_0, _found_0, _pl_0, _part_0, _ctx_0);
+  }
+}
+function $solver_loop_c12(_c_0,_pl_0,_part_0,_ctx_0,_t_0,_found_0) {
+  return (_x_1) => {
+    return $solver_loop_found(run_loop($solver_search(_c_0, _pl_0, _part_0, _ctx_0)), _c_0, run_clo($solver_loop_c13(_t_0,_found_0,_pl_0,_part_0,_ctx_0)));
+  }
+}
+function $solver_loop_c13(_t_0,_found_0,_pl_0,_part_0,_ctx_0) {
+  return (_x_2) => {
+    return $solver_loop(_t_0, {$: "Con", "head": _x_2, "tail": _found_0}, _pl_0, _part_0, _ctx_0);
   }
 }export default {
   "types:Grid": run_lib(() => run_loop($types_Grid()), 0),
@@ -1820,6 +2121,7 @@ function $solver_loop_c8(_t_0,_found_0,_todo_0,_part_0,_ctx_0) {
   "solver:dfs.free": run_lib((a0,a1,a2) => run_loop($solver_dfs_free(a0,a1,a2)), 3),
   "solver:leaf": run_lib((a0,a1) => run_loop($solver_leaf(a0,a1)), 2),
   "solver:dfs": run_lib((a0,a1,a2) => run_loop($solver_dfs(a0,a1,a2)), 3),
+  "solver:dfs2": run_lib((a0,a1,a2,a3,a4) => run_loop($solver_dfs2(a0,a1,nat_in(a2),nat_in(a3),a4)), 5),
   "solver:is_hidden": run_lib((a0) => run_loop($solver_is_hidden(a0)), 1),
   "solver:hidden_cells": run_lib((a0,a1) => run_loop($solver_hidden_cells(a0,a1)), 2),
   "solver:is_number": run_lib((a0) => run_loop($solver_is_number(a0)), 1),
@@ -1830,6 +2132,24 @@ function $solver_loop_c8(_t_0,_found_0,_todo_0,_part_0,_ctx_0) {
   "solver:nears": run_lib((a0) => run_loop($solver_nears(a0)), 1),
   "solver:fars": run_lib((a0) => run_loop($solver_fars(a0)), 1),
   "solver:order": run_lib((a0) => run_loop($solver_order(a0)), 1),
+  "solver:todo_c": run_lib((a0) => run_loop($solver_todo_c(a0)), 1),
+  "solver:rel_grid": run_lib((a0,a1,a2) => run_loop($solver_rel_grid(nat_in(a0),nat_in(a1),a2)), 3),
+  "solver:reach.add.go": run_lib((a0,a1,a2,a3,a4) => run_loop($solver_reach_add_go(a0,a1,a2,a3,a4)), 5),
+  "solver:reach.add": run_lib((a0,a1,a2) => run_loop($solver_reach_add(a0,a1,a2)), 3),
+  "solver:reach.ns": run_lib((a0,a1,a2) => run_loop($solver_reach_ns(a0,a1,a2)), 3),
+  "solver:reach.items": run_lib((a0,a1,a2) => run_loop($solver_reach_items(a0,a1,a2)), 3),
+  "solver:reach.run": run_lib((a0,a1,a2) => run_loop($solver_reach_run(nat_in(a0),a1,a2)), 3),
+  "solver:reach.order": run_lib((a0) => run_loop($solver_reach_order(a0)), 1),
+  "solver:reach.start": run_lib((a0,a1) => run_loop($solver_reach_start(nat_in(a0),nat_in(a1))), 2),
+  "solver:linked": run_lib((a0,a1,a2,a3,a4) => run_loop($solver_linked(a0,nat_in(a1),nat_in(a2),nat_in(a3),a4)), 5),
+  "solver:groups.go": run_lib((a0,a1,a2,a3) => run_loop($solver_groups_go(a0,nat_in(a1),a2,a3)), 4),
+  "solver:groups": run_lib((a0,a1,a2,a3,a4) => run_loop($solver_groups(nat_in(a0),nat_in(a1),a2,nat_in(a3),a4)), 5),
+  "solver:with_c": run_lib((a0,a1) => run_loop($solver_with_c(a0,a1)), 2),
+  "solver:gather": run_lib((a0,a1) => run_loop($solver_gather(a0,a1)), 2),
+  "solver:rot": run_lib((a0,a1) => run_loop($solver_rot(a0,nat_in(a1))), 2),
+  "solver:spin": run_lib((a0,a1,a2,a3) => run_loop($solver_spin(a0,nat_in(a1),nat_in(a2),nat_in(a3))), 4),
+  "solver:plan": run_lib((a0,a1,a2) => run_loop($solver_plan(nat_in(a0),nat_in(a1),a2)), 3),
+  "solver:plan_todo": run_lib((a0,a1,a2) => run_loop($solver_plan_todo(a0,a1,a2)), 3),
   "solver:covered": run_lib((a0,a1) => run_loop($solver_covered(a0,a1)), 2),
   "solver:search": run_lib((a0,a1,a2,a3) => run_loop($solver_search(a0,a1,a2,a3)), 4),
   "solver:loop.if": run_lib((a0,a1,a2) => run_loop($solver_loop_if(a0,a1,a2)), 3),

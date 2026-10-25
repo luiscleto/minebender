@@ -10,6 +10,7 @@ import ./proof_lists.bend as PL
 import ./proof_cells.bend as PS
 import ./proof_sums.bend as PU
 import ./proof_walk.bend as PW
+import ./proof_speed.bend as PF
 
 # The solver is right: when it names a cell, the cell is provably safe;
 # when it names none, every hidden cell might hold a mine.
@@ -1251,6 +1252,103 @@ def dfs_some_keep(todo, part, ctx, l, e, q, bq, lq):
         e2 => l2 => dfs_some_keep(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), ctx, l, e2, q, bq, l2),
         e2 => l2 => dfs_some_keep(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), ctx, l, e2, q, bq, l2))
 
+# The same for the counting search
+# =================================
+
+# A layout the counting search returns passes the consistency check.
+law dfs2_some_check:
+  for +todo: List<&2, S.Todo>
+  for +part: T.Grid(Maybe<&2, Bool>)
+  for +t: Nat
+  for +f: Nat
+  for +ctx: S.Ctx
+  for +l: T.Grid(Bool)
+  for e: {S.dfs2(todo, part, t, f, ctx) == Some{l} : Maybe<&2, T.Grid(Bool)>}
+  {S.check(ctx, l) == True{} : Bool}
+
+def dfs2_some_check.node(+c: T.Pos, +rel: List<&2, S.Item>, +rest: List<&2, S.Todo>, +part: T.Grid(Maybe<&2, Bool>),
+  +t: Nat, +f: Nat, +ctx: S.Ctx, +l: T.Grid(Bool), +fr: Bool,
+  e: {S.dfs.free(fr, u => S.dfs2(rest, part, t, f, ctx),
+      v => S.dfs.or(S.dfs.when(Bool.and(S.between(t, Nat.sub(f, 1n), S.ctx_n(ctx)), S.items_open(B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), rel)),
+        x => S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), t, Nat.sub(f, 1n), ctx)),
+      y => S.dfs.when(Bool.and(S.between(1n+t, Nat.sub(f, 1n), S.ctx_n(ctx)), S.items_open(B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), rel)),
+        z => S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), 1n+t, Nat.sub(f, 1n), ctx)))) == Some{l} : Maybe<&2, T.Grid(Bool)>},
+  kp: {S.dfs2(rest, part, t, f, ctx) == Some{l} : Maybe<&2, T.Grid(Bool)>} -> {S.check(ctx, l) == True{} : Bool},
+  k0: {S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), t, Nat.sub(f, 1n), ctx) == Some{l} : Maybe<&2, T.Grid(Bool)>} ->
+    {S.check(ctx, l) == True{} : Bool},
+  k1: {S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), 1n+t, Nat.sub(f, 1n), ctx) == Some{l} : Maybe<&2, T.Grid(Bool)>} ->
+    {S.check(ctx, l) == True{} : Bool}) -> {S.check(ctx, l) == True{} : Bool}:
+  match fr:
+    case False{}:
+      kp(e)
+    case True{}:
+      dfs_some_check.br(l, ctx, S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), t, Nat.sub(f, 1n), ctx),
+        S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), 1n+t, Nat.sub(f, 1n), ctx),
+        dfs_branch_some(Bool.and(S.between(t, Nat.sub(f, 1n), S.ctx_n(ctx)), S.items_open(B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), rel)),
+          Bool.and(S.between(1n+t, Nat.sub(f, 1n), S.ctx_n(ctx)), S.items_open(B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), rel)),
+          S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), t, Nat.sub(f, 1n), ctx),
+          S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), 1n+t, Nat.sub(f, 1n), ctx), l, e), k0, k1)
+
+def dfs2_some_check(todo, part, t, f, ctx, l, e):
+  match todo:
+    case Nil{}:
+      leaf_check.k(ctx, S.fill(part), l, leaf_some(ctx, S.fill(part), l, S.check(ctx, S.fill(part)), {==}, e))
+    case S.Todo{c, rel} <> rest:
+      dfs2_some_check.node(c, rel, rest, part, t, f, ctx, l, S.is_none(S.look(part, c)), e,
+        e2 => dfs2_some_check(rest, part, t, f, ctx, l, e2),
+        e2 => dfs2_some_check(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), t, Nat.sub(f, 1n), ctx, l, e2),
+        e2 => dfs2_some_check(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), 1n+t, Nat.sub(f, 1n), ctx, l, e2))
+
+# A layout the counting search returns keeps every cell the partial layout fixed.
+law dfs2_some_keep:
+  for +todo: List<&2, S.Todo>
+  for +part: T.Grid(Maybe<&2, Bool>)
+  for +t: Nat
+  for +f: Nat
+  for +ctx: S.Ctx
+  for +l: T.Grid(Bool)
+  for e: {S.dfs2(todo, part, t, f, ctx) == Some{l} : Maybe<&2, T.Grid(Bool)>}
+  for +q: T.Pos
+  for +bq: Bool
+  for +lq: {S.look(part, q) == Some{bq} : Maybe<&2, Bool>}
+  {B.mine(l, q) == bq : Bool}
+
+def dfs2_some_keep.node(+c: T.Pos, +rel: List<&2, S.Item>, +rest: List<&2, S.Todo>, +part: T.Grid(Maybe<&2, Bool>),
+  +t: Nat, +f: Nat, +ctx: S.Ctx, +l: T.Grid(Bool), +q: T.Pos, +bq: Bool, +fr: Bool, +fre: {S.is_none(S.look(part, c)) == fr : Bool},
+  e: {S.dfs.free(fr, u => S.dfs2(rest, part, t, f, ctx),
+      v => S.dfs.or(S.dfs.when(Bool.and(S.between(t, Nat.sub(f, 1n), S.ctx_n(ctx)), S.items_open(B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), rel)),
+        x => S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), t, Nat.sub(f, 1n), ctx)),
+      y => S.dfs.when(Bool.and(S.between(1n+t, Nat.sub(f, 1n), S.ctx_n(ctx)), S.items_open(B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), rel)),
+        z => S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), 1n+t, Nat.sub(f, 1n), ctx)))) == Some{l} : Maybe<&2, T.Grid(Bool)>},
+  +lq: {S.look(part, q) == Some{bq} : Maybe<&2, Bool>},
+  kp: {S.dfs2(rest, part, t, f, ctx) == Some{l} : Maybe<&2, T.Grid(Bool)>} -> {B.mine(l, q) == bq : Bool},
+  k0: {S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), t, Nat.sub(f, 1n), ctx) == Some{l} : Maybe<&2, T.Grid(Bool)>} ->
+    {S.look(B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), q) == Some{bq} : Maybe<&2, Bool>} -> {B.mine(l, q) == bq : Bool},
+  k1: {S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), 1n+t, Nat.sub(f, 1n), ctx) == Some{l} : Maybe<&2, T.Grid(Bool)>} ->
+    {S.look(B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), q) == Some{bq} : Maybe<&2, Bool>} -> {B.mine(l, q) == bq : Bool}) ->
+  {B.mine(l, q) == bq : Bool}:
+  match fr:
+    case False{}:
+      kp(e)
+    case True{}:
+      +d0 = S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), t, Nat.sub(f, 1n), ctx)
+      +d1 = S.dfs2(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), 1n+t, Nat.sub(f, 1n), ctx)
+      dfs_some_keep.br(l, q, bq, d0, d1,
+        dfs_branch_some(Bool.and(S.between(t, Nat.sub(f, 1n), S.ctx_n(ctx)), S.items_open(B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), rel)),
+          Bool.and(S.between(1n+t, Nat.sub(f, 1n), S.ctx_n(ctx)), S.items_open(B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), rel)), d0, d1, l, e),
+        e0 => k0(e0, set_keep(part, c, q, Some{False{}}, bq, fre, lq, B.same(c, q), {==})),
+        e1 => k1(e1, set_keep(part, c, q, Some{True{}}, bq, fre, lq, B.same(c, q), {==})))
+
+def dfs2_some_keep(todo, part, t, f, ctx, l, e, q, bq, lq):
+  match todo:
+    case Nil{}:
+      leaf_keep(ctx, part, l, q, bq, lq, leaf_some(ctx, S.fill(part), l, S.check(ctx, S.fill(part)), {==}, e))
+    case S.Todo{c, rel} <> rest:
+      dfs2_some_keep.node(c, rel, rest, part, t, f, ctx, l, q, bq, S.is_none(S.look(part, c)), {==}, e, lq,
+        e2 => dfs2_some_keep(rest, part, t, f, ctx, l, e2, q, bq, lq),
+        e2 => l2 => dfs2_some_keep(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{False{}}), t, Nat.sub(f, 1n), ctx, l, e2, q, bq, l2),
+        e2 => l2 => dfs2_some_keep(rest, B.set_at(Maybe<&2, Bool>, part, c, Some{True{}}), 1n+t, Nat.sub(f, 1n), ctx, l, e2, q, bq, l2))
+
 # The check is consistency
 # ========================
 
@@ -2126,16 +2224,16 @@ def loop_found_some(r: Maybe<&2, T.Grid(Bool)>, +c0: T.Pos, k: T.Grid(Bool) -> M
     case Some{l}:
       Inr{(l, ({==}, e))}
 
-def LoopSome(+hs: List<&2, T.Pos>, +todo: List<&2, S.Todo>, +part: T.Grid(Maybe<&2, Bool>), +ctx: S.Ctx, +c: T.Pos) -> Type:
+def LoopSome(+hs: List<&2, T.Pos>, +todo: S.Plan, +part: T.Grid(Maybe<&2, Bool>), +ctx: S.Ctx, +c: T.Pos) -> Type:
   {B.contains(hs, c) == True{} : Bool} & {S.search(c, todo, part, ctx) == None{} : Maybe<&2, T.Grid(Bool)>}
 
-def loop_some.lift(+c0: T.Pos, +t: List<&2, T.Pos>, +todo: List<&2, S.Todo>, +part: T.Grid(Maybe<&2, Bool>),
+def loop_some.lift(+c0: T.Pos, +t: List<&2, T.Pos>, +todo: S.Plan, +part: T.Grid(Maybe<&2, Bool>),
   +ctx: S.Ctx, +c: T.Pos, r: LoopSome(t, todo, part, ctx, c)) -> LoopSome(c0 <> t, todo, part, ctx, c):
   match r:
     case (m, s):
       (or_r(B.same(c0, c), B.contains(t, c), m), s)
 
-def loop_some.found(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +todo: List<&2, S.Todo>,
+def loop_some.found(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +todo: S.Plan,
   +part: T.Grid(Maybe<&2, Bool>), +ctx: S.Ctx, +c: T.Pos,
   r: Or({c0 == c : T.Pos} & {S.search(c0, todo, part, ctx) == None{} : Maybe<&2, T.Grid(Bool)>},
     Exists(T.Grid(Bool), l => {S.search(c0, todo, part, ctx) == Some{l} : Maybe<&2, T.Grid(Bool)>} &
@@ -2156,7 +2254,7 @@ def loop_some.found(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Boo
             case (sl, lp):
               loop_some.lift(c0, t, todo, part, ctx, c, ih(l, lp))
 
-def loop_some.cov(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +todo: List<&2, S.Todo>,
+def loop_some.cov(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +todo: S.Plan,
   +part: T.Grid(Maybe<&2, Bool>), +ctx: S.Ctx, +c: T.Pos, +b: Bool,
   e: {S.loop.if(b, u => S.loop(t, found, todo, part, ctx),
       v => S.loop.found(S.search(c0, todo, part, ctx), c0, l => S.loop(t, l <> found, todo, part, ctx))) == Some{c} : Maybe<&2, T.Pos>},
@@ -2174,7 +2272,7 @@ def loop_some.cov(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)
 law loop_some:
   for +hs: List<&2, T.Pos>
   for +found: List<&2, T.Grid(Bool)>
-  for +todo: List<&2, S.Todo>
+  for +todo: S.Plan
   for +part: T.Grid(Maybe<&2, Bool>)
   for +ctx: S.Ctx
   for +c: T.Pos
@@ -2215,7 +2313,7 @@ def loop_none.pick(+ctx: S.Ctx, +c0: T.Pos, +t: List<&2, T.Pos>, +c: T.Pos, +l: 
     case Inr{mt}:
       k(mt)
 
-def loop_none.found(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +todo: List<&2, S.Todo>,
+def loop_none.found(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +todo: S.Plan,
   +part: T.Grid(Maybe<&2, Bool>), +w: Nat, +h: Nat, +n: Nat, +rows: T.Grid(T.Seen), +its: List<&2, S.Item>,
   +val: {all_valid(S.Ctx{w, h, n, rows, its}, found) == True{} : Bool},
   +shP: {B.shaped(Maybe<&2, Bool>, w, h, part) == True{} : Bool}, on0: {B.on_board(w, h, c0) == True{} : Bool},
@@ -2232,8 +2330,9 @@ def loop_none.found(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Boo
         case (+sl, ln):
           +ctx = {S.Ctx{w, h, n, rows, its} : S.Ctx}
           +p1 = B.set_at(Maybe<&2, Bool>, part, c0, Some{True{}})
-          +vl = dfs_some_check(todo, p1, ctx, l, sl)
-          +ml = dfs_some_keep(todo, p1, ctx, l, sl, c0, True{}, set_look(w, h, part, c0, Some{True{}}, shP, on0))
+          +vl = dfs2_some_check(S.plan_todo(c0, todo, ctx), p1, S.part_true(p1), S.part_none(p1), ctx, l, sl)
+          +ml = dfs2_some_keep(S.plan_todo(c0, todo, ctx), p1, S.part_true(p1), S.part_none(p1), ctx, l, sl, c0, True{},
+            set_look(w, h, part, c0, Some{True{}}, shP, on0))
           loop_none.pick(ctx, c0, t, c, l, vl, ml, mr,
             mt => ih(l, ln, %Equal.sym(Bool, S.check(ctx, l), True{}, vl) : {Bool.and(_, all_valid(ctx, found)) == True{} : Bool}; val, mt))
 
@@ -2247,7 +2346,7 @@ def loop_none.pick2(+ctx: S.Ctx, +c0: T.Pos, +t: List<&2, T.Pos>, +c: T.Pos, +fo
     case Inr{mt}:
       k(mt)
 
-def loop_none.cov(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +todo: List<&2, S.Todo>,
+def loop_none.cov(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)>, +todo: S.Plan,
   +part: T.Grid(Maybe<&2, Bool>), +w: Nat, +h: Nat, +n: Nat, +rows: T.Grid(T.Seen), +its: List<&2, S.Item>,
   +val: {all_valid(S.Ctx{w, h, n, rows, its}, found) == True{} : Bool},
   +shP: {B.shaped(Maybe<&2, Bool>, w, h, part) == True{} : Bool}, on0: {B.on_board(w, h, c0) == True{} : Bool},
@@ -2276,7 +2375,7 @@ def loop_none.cov(+c0: T.Pos, +t: List<&2, T.Pos>, +found: List<&2, T.Grid(Bool)
 law loop_none:
   for +hs: List<&2, T.Pos>
   for +found: List<&2, T.Grid(Bool)>
-  for +todo: List<&2, S.Todo>
+  for +todo: S.Plan
   for +part: T.Grid(Maybe<&2, Bool>)
   for +w: Nat
   for +h: Nat
@@ -2440,6 +2539,124 @@ def solver_ton(+w: Nat, +h: Nat, +rows: T.Grid(T.Seen)) ->
   +ta = todos_onb_all(PS.WH{w, h}, its, S.hidden_cells(rows, B.cells(w, h)), items_onb_all(w, h, rows, B.cells(w, h), PS.cells_on(w, h)))
   ton_append(PS.WH{w, h}, S.nears(t0), S.fars(t0), ton_order(PS.WH{w, h}, t0, ta), ton_order_f(PS.WH{w, h}, t0, ta))
 
+# The order of a search
+# ======================
+# Each search walks the cells in a heuristic order, then in the plain one;
+# whatever the heuristic, every cell is still in the walk, and every todo in
+# it is one of the solve's own.
+
+def tok_f(l: T.Grid(Bool), t: S.Todo) -> Bool:
+  match t:
+    case S.Todo{c, rel}:
+      S.items_ok(rel, l)
+
+def ton_f(e: PS.WH, t: S.Todo) -> Bool:
+  match t:
+    case S.Todo{c, rel}:
+      items_onb(e, rel)
+
+law tok_tall:
+  for +ts: List<&2, S.Todo>
+  for +layout: T.Grid(Bool)
+  {todos_ok(ts, layout) == PF.tall(~T.Grid(Bool), ~tok_f, layout, ts) : Bool}
+
+def tok_tall(ts, layout):
+  match ts:
+    case Nil{}:
+      {==}
+    case S.Todo{c, rel} <> t:
+      %tok_tall(t, layout) : {Bool.and(S.items_ok(rel, layout), todos_ok(t, layout))
+        == Bool.and(S.items_ok(rel, layout), _) : Bool}
+      {==}
+
+law ton_tall:
+  for +e: PS.WH
+  for +ts: List<&2, S.Todo>
+  {todos_onb(e, ts) == PF.tall(~PS.WH, ~ton_f, e, ts) : Bool}
+
+def ton_tall(e, ts):
+  match ts:
+    case Nil{}:
+      {==}
+    case S.Todo{c, rel} <> t:
+      %ton_tall(e, t) : {Bool.and(items_onb(e, rel), todos_onb(e, t)) == Bool.and(items_onb(e, rel), _) : Bool}
+      {==}
+
+law tcontains_pre:
+  for +pre: List<&2, S.Todo>
+  for +base: List<&2, S.Todo>
+  for +q: T.Pos
+  for e: {tcontains(base, q) == True{} : Bool}
+  {tcontains(List.append(&2, S.Todo, pre, base), q) == True{} : Bool}
+
+def tcontains_pre(pre, base, q, e):
+  match pre:
+    case Nil{}:
+      e
+    case S.Todo{c, rel} <> t:
+      %Equal.sym(Bool, tcontains(List.append(&2, S.Todo, t, base), q), True{}, tcontains_pre(t, base, q, e)) :
+        {Bool.or(B.same(c, q), _) == True{} : Bool}
+      PS.or_true_r(B.same(c, q))
+
+def or_mono(+a: Bool, +b: Bool, +b2: Bool, k: {b == True{} : Bool} -> {b2 == True{} : Bool},
+  e: {Bool.or(a, b) == True{} : Bool}) -> {Bool.or(a, b2) == True{} : Bool}:
+  match a:
+    case True{}:
+      {==}
+    case False{}:
+      k(e)
+
+# Cells still to do stay to do with more todos in front.
+law covers_pre:
+  for +pre: List<&2, S.Todo>
+  for +base: List<&2, S.Todo>
+  for +part: T.Grid(Maybe<&2, Bool>)
+  for +ps: List<&2, T.Pos>
+  for +cv: {PS.allp(~CV, ~cv_f, CV{base, part}, ps) == True{} : Bool}
+  {PS.allp(~CV, ~cv_f, CV{List.append(&2, S.Todo, pre, base), part}, ps) == True{} : Bool}
+
+def covers_pre(pre, base, part, ps, cv):
+  match ps:
+    case Nil{}:
+      {==}
+    case +q <> +t:
+      +a = Bool.not(S.is_none(S.look(part, q)))
+      +app = List.append(&2, S.Todo, pre, base)
+      +hd = or_mono(a, tcontains(base, q), tcontains(app, q), m => tcontains_pre(pre, base, q, m),
+        PS.allp_head(~CV, ~cv_f, CV{base, part}, q, t, cv))
+      %Equal.sym(Bool, PS.allp(~CV, ~cv_f, CV{app, part}, t), True{},
+        covers_pre(pre, base, part, t, PS.allp_tail(~CV, ~cv_f, CV{base, part}, q, t, cv))) :
+        {Bool.and(cv_f(CV{app, part}, q), _) == True{} : Bool}
+      %Equal.sym(Bool, cv_f(CV{app, part}, q), True{}, hd) : {Bool.and(_, True{}) == True{} : Bool}
+      {==}
+
+# The heuristic order of the search for c, as the plan builds it.
+def plan_qs(+c: T.Pos, +w: Nat, +h: Nat, +ts: List<&2, S.Todo>) -> List<&2, T.Pos>:
+  +near = S.nears(ts)
+  +fuel = Nat.add(List.length(&2, S.Todo, near), 1n)
+  +relg = S.rel_grid(w, h, near)
+  List.append(&2, T.Pos, S.linked(c, w, h, fuel, relg), S.groups(w, h, near, fuel, relg))
+
+def plan_k(+c: T.Pos, +w: Nat, +n: Nat, +ts: List<&2, S.Todo>) -> Nat:
+  S.spin(c, w, n, List.length(&2, S.Todo, S.fars(ts)))
+
+def plan_list(+c: T.Pos, +w: Nat, +h: Nat, +n: Nat, +ts: List<&2, S.Todo>) -> List<&2, S.Todo>:
+  List.append(&2, S.Todo, S.gather(plan_qs(c, w, h, ts), S.nears(ts)),
+    List.append(&2, S.Todo, S.rot(S.fars(ts), plan_k(c, w, n, ts)), S.order(ts)))
+
+law plan_shape:
+  for +c: T.Pos
+  for +w: Nat
+  for +h: Nat
+  for +n: Nat
+  for +rows: T.Grid(T.Seen)
+  for +its: List<&2, S.Item>
+  for +ts: List<&2, S.Todo>
+  {S.plan_todo(c, S.plan(w, h, ts), S.Ctx{w, h, n, rows, its}) == plan_list(c, w, h, n, ts) : List<&2, S.Todo>}
+
+def plan_shape(c, w, h, n, rows, its, ts):
+  {==}
+
 # A failed search for c rules out every consistent layout mining c.
 law search_none:
   for +w: Nat
@@ -2452,12 +2669,15 @@ law search_none:
   for +layout: T.Grid(Bool)
   for +cons: {L.consistent(T.Knowledge{w, h, n, rows}, layout) == True{} : Bool}
   for +mc: {B.mine(layout, c) == True{} : Bool}
-  for sn: {S.search(c, S.order(S.todos(S.items(w, h, rows, B.cells(w, h)), S.hidden_cells(rows, B.cells(w, h)))),
+  for sn: {S.search(c, S.plan(w, h, S.todos(S.items(w, h, rows, B.cells(w, h)), S.hidden_cells(rows, B.cells(w, h)))),
     S.start(rows), S.Ctx{w, h, n, rows, S.items(w, h, rows, B.cells(w, h))}) == None{} : Maybe<&2, T.Grid(Bool)>}
   Empty
 
 def search_none(w, h, n, rows, okt, c, onc, layout, cons, mc, sn):
   +its = S.items(w, h, rows, B.cells(w, h))
+  +hs = S.hidden_cells(rows, B.cells(w, h))
+  +t0 = S.todos(its, hs)
+  +ctx = {S.Ctx{w, h, n, rows, its} : S.Ctx}
   +shS = Equal.trans(Bool, B.shaped(Maybe<&2, Bool>, w, h, S.start(rows)), B.shaped(T.Seen, w, h, rows), True{},
     start_shaped(w, h, rows), okt)
   +chk = Equal.trans(Bool, S.check(S.Ctx{w, h, n, rows, its}, layout), L.consistent(T.Knowledge{w, h, n, rows}, layout), True{},
@@ -2466,18 +2686,47 @@ def search_none(w, h, n, rows, okt, c, onc, layout, cons, mc, sn):
       {_ == True{} : Bool};
     PW.and4_a(L.shaped(Bool, w, h, layout), L.shaped(T.Seen, w, h, rows), Nat.is_eq(L.total_mines(layout), n),
       L.agrees_all(w, h, rows, layout, L.cells(w, h)), cons) : {B.shaped(Bool, w, h, layout) == True{} : Bool}}
-  dfs_none(S.order(S.todos(its, S.hidden_cells(rows, B.cells(w, h)))), B.set_at(Maybe<&2, Bool>, S.start(rows), c, Some{True{}}),
-    w, h, n, rows, its, layout, sn,
-    PL.shaped_set(Maybe<&2, Bool>, w, h, S.start(rows), c, Some{True{}}, shS), shL,
-    start_cover.go(w, h, rows, its, c, shS, B.cells(w, h), PS.cells_on(w, h)),
+  +p = B.set_at(Maybe<&2, Bool>, S.start(rows), c, Some{True{}})
+  +shp = PL.shaped_set(Maybe<&2, Bool>, w, h, S.start(rows), c, Some{True{}}, shS)
+  +qs = plan_qs(c, w, h, t0)
+  +k = plan_k(c, w, n, t0)
+  +todo = plan_list(c, w, h, n, t0)
+  +con = PF.tall_plan(~PS.WH, ~PF.con_f, PS.WH{w, h}, t0, qs, k,
+    PF.con_todos(w, h, its, hs, hc_on(rows, w, h, B.cells(w, h), PS.cells_on(w, h))))
+  +eq = PF.dfs2_eq(todo, p, w, h, n, rows, its, S.part_true(p), S.part_none(p), shp, con, {==}, {==})
+  +sn1 = {%Equal.sym(List<&2, S.Todo>, S.plan_todo(c, S.plan(w, h, t0), ctx), todo, plan_shape(c, w, h, n, rows, its, t0)) :
+      {S.dfs2(_, p, S.part_true(p), S.part_none(p), ctx) == None{} : Maybe<&2, T.Grid(Bool)>};
+    sn : {S.dfs2(todo, p, S.part_true(p), S.part_none(p), ctx) == None{} : Maybe<&2, T.Grid(Bool)>}}
+  +sn2 = Equal.trans(Maybe<&2, T.Grid(Bool)>, S.dfs(todo, p, ctx), S.dfs2(todo, p, S.part_true(p), S.part_none(p), ctx), None{},
+    Equal.sym(Maybe<&2, T.Grid(Bool)>, S.dfs2(todo, p, S.part_true(p), S.part_none(p), ctx), S.dfs(todo, p, ctx), eq), sn1)
+  +rest = List.append(&2, S.Todo, S.rot(S.fars(t0), k), S.order(t0))
+  +cov = covers_pre(S.gather(qs, S.nears(t0)), rest, p, B.cells(w, h),
+    covers_pre(S.rot(S.fars(t0), k), S.order(t0), p, B.cells(w, h),
+      start_cover.go(w, h, rows, its, c, shS, B.cells(w, h), PS.cells_on(w, h))))
+  +a = Bool.and(Bool.and(B.shaped(Bool, w, h, layout), B.shaped(T.Seen, w, h, rows)), Nat.is_eq(B.total_mines(layout), n))
+  +ta = todos_ok_all(its, hs, layout, P.and_true_r(a, S.items_ok(its, layout), chk))
+  +tok = {%Equal.sym(Bool, todos_ok(todo, layout), PF.tall(~T.Grid(Bool), ~tok_f, layout, todo), tok_tall(todo, layout)) :
+      {_ == True{} : Bool};
+    PF.tall_plan(~T.Grid(Bool), ~tok_f, layout, t0, qs, k,
+      Equal.trans(Bool, PF.tall(~T.Grid(Bool), ~tok_f, layout, t0), todos_ok(t0, layout), True{},
+        Equal.sym(Bool, todos_ok(t0, layout), PF.tall(~T.Grid(Bool), ~tok_f, layout, t0), tok_tall(t0, layout)), ta)) :
+      {todos_ok(todo, layout) == True{} : Bool}}
+  +e = {PS.WH{w, h} : PS.WH}
+  +tn = todos_onb_all(e, its, hs, items_onb_all(w, h, rows, B.cells(w, h), PS.cells_on(w, h)))
+  +ton = {%Equal.sym(Bool, todos_onb(e, todo), PF.tall(~PS.WH, ~ton_f, e, todo), ton_tall(e, todo)) :
+      {_ == True{} : Bool};
+    PF.tall_plan(~PS.WH, ~ton_f, e, t0, qs, k,
+      Equal.trans(Bool, PF.tall(~PS.WH, ~ton_f, e, t0), todos_onb(e, t0), True{},
+        Equal.sym(Bool, todos_onb(e, t0), PF.tall(~PS.WH, ~ton_f, e, t0), ton_tall(e, t0)), tn)) :
+      {todos_onb(e, todo) == True{} : Bool}}
+  dfs_none(todo, p, w, h, n, rows, its, layout, sn2, shp, shL, cov,
     comp_set(w, h, c, S.start(rows), layout, True{}, shS, mc, B.cells(w, h), PS.cells_on(w, h),
       start_comp(w, h, n, rows, layout, cons)),
-    chk, solver_tok(w, h, n, rows, layout, chk), solver_ton(w, h, rows),
-    items_onb_all(w, h, rows, B.cells(w, h), PS.cells_on(w, h)))
+    chk, tok, ton, items_onb_all(w, h, rows, B.cells(w, h), PS.cells_on(w, h)))
 
 def safe_fn(+w: Nat, +h: Nat, +n: Nat, +rows: T.Grid(T.Seen), +okt: {B.shaped(T.Seen, w, h, rows) == True{} : Bool},
   +c: T.Pos, +onc: {B.on_board(w, h, c) == True{} : Bool},
-  +sn: {S.search(c, S.order(S.todos(S.items(w, h, rows, B.cells(w, h)), S.hidden_cells(rows, B.cells(w, h)))),
+  +sn: {S.search(c, S.plan(w, h, S.todos(S.items(w, h, rows, B.cells(w, h)), S.hidden_cells(rows, B.cells(w, h)))),
     S.start(rows), S.Ctx{w, h, n, rows, S.items(w, h, rows, B.cells(w, h))}) == None{} : Maybe<&2, T.Grid(Bool)>},
   +layout: T.Grid(Bool), +cons: {L.consistent(T.Knowledge{w, h, n, rows}, layout) == True{} : Bool},
   +b: Bool, be: {B.mine(layout, c) == b : Bool}) -> {L.mine(layout, c) == False{} : Bool}:
@@ -2520,7 +2769,7 @@ def safe_hidden.k(+w: Nat, +h: Nat, +n: Nat, +rows: T.Grid(T.Seen), +c: T.Pos,
 
 def solve_safe.k(+w: Nat, +h: Nat, +n: Nat, +rows: T.Grid(T.Seen), +c: T.Pos,
   +okt: {B.shaped(T.Seen, w, h, rows) == True{} : Bool},
-  ls: LoopSome(S.hidden_cells(rows, B.cells(w, h)), S.order(S.todos(S.items(w, h, rows, B.cells(w, h)), S.hidden_cells(rows, B.cells(w, h)))),
+  ls: LoopSome(S.hidden_cells(rows, B.cells(w, h)), S.plan(w, h, S.todos(S.items(w, h, rows, B.cells(w, h)), S.hidden_cells(rows, B.cells(w, h)))),
     S.start(rows), S.Ctx{w, h, n, rows, S.items(w, h, rows, B.cells(w, h))}, c)) ->
   L.ProvablySafe(T.Knowledge{w, h, n, rows}, c):
   match ls:
@@ -2540,7 +2789,7 @@ def solve_safe.go(+w: Nat, +h: Nat, +n: Nat, +rows: T.Grid(T.Seen), +c: T.Pos, +
     case True{}:
       +hs = S.hidden_cells(rows, B.cells(w, h))
       +its = S.items(w, h, rows, B.cells(w, h))
-      ls = loop_some(hs, Nil{}, S.order(S.todos(its, hs)), S.start(rows), S.Ctx{w, h, n, rows, its}, c, e)
+      ls = loop_some(hs, Nil{}, S.plan(w, h, S.todos(its, hs)), S.start(rows), S.Ctx{w, h, n, rows, its}, c, e)
       solve_safe.k(w, h, n, rows, c, oke, ls)
 
 # Witness soundness: a cell the solver names is provably safe.
@@ -2588,7 +2837,7 @@ def solve_stuck.go(+w: Nat, +h: Nat, +n: Nat, +rows: T.Grid(T.Seen), +ok: Bool,
             start_shaped(w, h, rows), oke)
           +mp = hc_member(rows, B.cells(w, h), p, PS.cells_member(w, h, p, hid_on(w, h, n, rows, p, hid)), hid_hp(w, h, n, rows, p, hid))
           stuck_wit(w, h, n, rows, p, H,
-            loop_none(hs, Nil{}, S.order(S.todos(its, hs)), S.start(rows), w, h, n, rows, its, e, {==}, shS,
+            loop_none(hs, Nil{}, S.plan(w, h, S.todos(its, hs)), S.start(rows), w, h, n, rows, its, e, {==}, shS,
               hc_on(rows, w, h, B.cells(w, h), PS.cells_on(w, h)), p, mp))
 
 def solve_stuck.k(+k: T.Knowledge, e: {S.solve(k) == None{} : Maybe<&2, T.Pos>}, +p: T.Pos, ps: L.ProvablySafe(k, p)) -> Empty:
