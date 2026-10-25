@@ -14,3 +14,8 @@ as a trial of law-driven development. **Play: https://cleto.dev/minebender/**
 
 The assist: press it when stuck. If no hidden cell is provably safe from what you can see (numbers
 and the total mine count), it opens a safe cell. If one could be deduced, you lose and it is shown.
+
+## License
+
+MIT (see `LICENSE`). `docs/ui.mjs` is compiler output that includes parts of Bend's runtime and
+Base library, which are Apache-2.0 (`docs/LICENSE-bend`).
