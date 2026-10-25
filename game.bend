@@ -1,41 +1,454 @@
 import Base
 import ./types.bend as T
+import ./board.bend as B
+import ./solver.bend as S
 
-# STUB: signatures only, so that LAWS.bend type-checks while the laws are
-# under review. Every body here is a placeholder.
+# The game. LAWS.bend states what it must do; PROOF.bend proves it does.
 
+# The real mines, the cells revealed so far, the player's flags (any cells;
+# only hidden ones count as flagged) and the status.
 type Game is Data:
-  Game{w: Nat, h: Nat, layout: T.Grid(Bool), status: T.Status}
+  Game{w: Nat, h: Nat, layout: T.Grid(Bool), shown: T.Grid(Bool),
+    flags: List<&2, T.Pos>, status: T.Status}
 
-# A new game on a w-by-h board with the given mines, nothing revealed yet.
-def fresh(w: Nat, h: Nat, layout: T.Grid(Bool)) -> Game:
-  Game{w, h, layout, T.Playing{}}
-
-def step(g: Game, a: T.Action) -> Game:
-  g
-
-# Reveal p whether or not it is flagged (Reveal, Chord and Assist use it).
-def open(g: Game, p: T.Pos) -> Game:
-  g
-
-def knowledge(g: Game) -> T.Knowledge:
-  match g:
-    case Game{w, h, layout, status}:
-      T.Knowledge{w, h, 0n, Nil{}}
+# Accessors
+# ---------
 
 def status(g: Game) -> T.Status:
   match g:
-    case Game{w, h, layout, status}:
+    case Game{w, h, layout, shown, flags, status}:
       status
 
-def flagged(g: Game, p: T.Pos) -> Bool:
-  False{}
+def is_playing(s: T.Status) -> Bool:
+  match s:
+    case T.Playing{}:
+      True{}
+    case o:
+      False{}
 
-# The board size and mine count a level plays with.
+# p is a cell of the board that is not revealed yet.
+def unrevealed(+w: Nat, +h: Nat, shown: T.Grid(Bool), +p: T.Pos) -> Bool:
+  B.on_board(w, h, p) && Bool.not(B.at(Bool, False{}, shown, p))
+
+def flagged(g: Game, +p: T.Pos) -> Bool:
+  match g:
+    case Game{w, h, layout, shown, flags, status}:
+      unrevealed(w, h, shown, p) && B.contains(flags, p)
+
+# What the player sees at p.
+def seen_pick(s: Bool, m: Bool, w: Nat, h: Nat, layout: T.Grid(Bool), p: T.Pos) -> T.Seen:
+  match s m:
+    case False{} _:
+      T.Hidden{}
+    case True{} True{}:
+      T.Boom{}
+    case True{} False{}:
+      T.Shown{B.adj_mines(w, h, layout, p)}
+
+def seen_at(+w: Nat, +h: Nat, +layout: T.Grid(Bool), shown: T.Grid(Bool), +p: T.Pos) -> T.Seen:
+  seen_pick(B.at(Bool, False{}, shown, p), B.mine(layout, p), w, h, layout, p)
+
+def know_row(+w: Nat, +h: Nat, +layout: T.Grid(Bool), +shown: T.Grid(Bool), +y: Nat,
+  xs: List<&2, Nat>) -> List<&2, T.Seen>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      seen_at(w, h, layout, shown, T.Pos{x, y}) <> know_row(w, h, layout, shown, y, t)
+
+def know_rows(+w: Nat, +h: Nat, +layout: T.Grid(Bool), +shown: T.Grid(Bool),
+  ys: List<&2, Nat>) -> T.Grid(T.Seen):
+  match ys:
+    case Nil{}:
+      Nil{}
+    case y <> t:
+      know_row(w, h, layout, shown, y, List.range(w)) <> know_rows(w, h, layout, shown, t)
+
+def knowledge(g: Game) -> T.Knowledge:
+  match g:
+    case Game{+w, +h, +layout, shown, flags, status}:
+      T.Knowledge{w, h, B.total_mines(layout), know_rows(w, h, layout, shown, List.range(h))}
+
+# Every safe cell is revealed.
+def all_safe.go(+layout: T.Grid(Bool), +shown: T.Grid(Bool), ps: List<&2, T.Pos>) -> Bool:
+  match ps:
+    case Nil{}:
+      True{}
+    case +p <> t:
+      (B.mine(layout, p) || B.at(Bool, False{}, shown, p)) && all_safe.go(layout, shown, t)
+
+def all_safe(w: Nat, h: Nat, +layout: T.Grid(Bool), +shown: T.Grid(Bool)) -> Bool:
+  all_safe.go(layout, shown, B.cells(w, h))
+
+def won_or_playing(b: Bool) -> T.Status:
+  match b:
+    case True{}:
+      T.Won{}
+    case False{}:
+      T.Playing{}
+
+# Starting and setting up
+# -----------------------
+
+def fresh(+w: Nat, +h: Nat, +layout: T.Grid(Bool)) -> Game:
+  +shown = B.blank(Bool, w, h, False{})
+  Game{w, h, layout, shown, Nil{}, won_or_playing(all_safe(w, h, layout, shown))}
+
+def clamp(lo: Nat, hi: Nat, x: Nat) -> Nat:
+  Nat.max(lo, Nat.min(hi, x))
+
+def custom(w: Nat, h: Nat, m: Nat) -> T.Setup:
+  +cw = clamp(9n, 30n, w)
+  +ch = clamp(9n, 25n, h)
+  T.Setup{cw, ch, Nat.min(clamp(10n, 999n, m), Nat.sub(Nat.mul(cw, ch), 10n))}
+
 def setup(l: T.Level) -> T.Setup:
-  T.Setup{9n, 9n, 10n}
+  match l:
+    case T.Beginner{}:
+      T.Setup{9n, 9n, 10n}
+    case T.Intermediate{}:
+      T.Setup{16n, 16n, 40n}
+    case T.Expert{}:
+      T.Setup{30n, 16n, 99n}
+    case T.Custom{w, h, m}:
+      custom(w, h, m)
 
-# A w-by-h layout with n mines, none on `first`, shuffled by `rs`.
-def place_mines(w: Nat, h: Nat, n: Nat, first: T.Pos, rs: List<&2, U32>) ->
-  T.Grid(Bool):
-  Nil{}
+# Board generation
+# ----------------
+# Selection sampling (Knuth's Algorithm S) over the cells other than
+# `first`, row by row: with `need` mines still to place among `left`
+# candidates, a cell gets a mine when need = left, or else with probability
+# about need/left. Whatever the random numbers, exactly n mines come out.
+
+type GenState is Data:
+  GenState{need: Nat, left: Nat, rs: List<&2, U32>}
+
+def gen.coin(r: U32, +left: Nat, need: Nat) -> Bool:
+  Nat.is_lt(Nat.mod(U32.to_nat(r), left), need)
+
+# Whether the next candidate gets a mine: forced when every candidate left
+# needs one, else a coin flip that comes up heads about need/left of the time.
+def gen.pick(+need: Nat, +left: Nat, rs: List<&2, U32>) -> Bool:
+  match rs:
+    case Nil{}:
+      Nat.is_eq(need, left)
+    case r <> t:
+      Nat.is_eq(need, left) || gen.coin(r, left, need)
+
+# Whether cell p gets a mine.
+def gen.bit(first: T.Pos, p: T.Pos, st: GenState) -> Bool:
+  match st:
+    case GenState{+need, left, rs}:
+      Bool.not(B.same(p, first)) && Nat.is_lt(0n, need) && gen.pick(need, left, rs)
+
+def gen.next.go(skip: Bool, bit: Bool, need: Nat, left: Nat, rs: List<&2, U32>) -> GenState:
+  match skip:
+    case True{}:
+      GenState{need, left, rs}
+    case False{}:
+      GenState{Nat.sub(need, Bool.pick(Nat, bit, 1n, 0n)), Nat.sub(left, 1n),
+        List.tail(&2, U32, rs)}
+
+# The state after cell p.
+def gen.next(+first: T.Pos, +p: T.Pos, +st: GenState) -> GenState:
+  match st:
+    case GenState{need, left, rs}:
+      gen.next.go(B.same(p, first), gen.bit(first, p, st), need, left, rs)
+
+def gen.row(+first: T.Pos, +y: Nat, xs: List<&2, Nat>, +st: GenState) -> List<&2, Bool>:
+  match xs:
+    case Nil{}:
+      Nil{}
+    case x <> t:
+      +p = {T.Pos{x, y} : T.Pos}
+      gen.bit(first, p, st) <> gen.row(first, y, t, gen.next(first, p, st))
+
+# The state after a row.
+def gen.row_state(+first: T.Pos, +y: Nat, xs: List<&2, Nat>, +st: GenState) -> GenState:
+  match xs:
+    case Nil{}:
+      st
+    case x <> t:
+      gen.row_state(first, y, t, gen.next(first, T.Pos{x, y}, st))
+
+def gen.rows(+first: T.Pos, +w: Nat, ys: List<&2, Nat>, +st: GenState) -> T.Grid(Bool):
+  match ys:
+    case Nil{}:
+      Nil{}
+    case +y <> t:
+      gen.row(first, y, List.range(w), st)
+        <> gen.rows(first, w, t, gen.row_state(first, y, List.range(w), st))
+
+# How many cells of ps are not `first`.
+def gen.left(+first: T.Pos, ps: List<&2, T.Pos>) -> Nat:
+  match ps:
+    case Nil{}:
+      0n
+    case p <> t:
+      Nat.add(Bool.pick(Nat, B.same(p, first), 0n, 1n), gen.left(first, t))
+
+def place_mines(+w: Nat, +h: Nat, n: Nat, +first: T.Pos, rs: List<&2, U32>) -> T.Grid(Bool):
+  gen.rows(first, w, List.range(h), GenState{n, gen.left(first, B.cells(w, h)), rs})
+
+# Revealing
+# ---------
+
+# A cell queued by the flood, with the path that reached it from the cell
+# first opened, newest step first (kept only so the proofs can name it).
+type Work is Data:
+  Work{c: T.Pos, back: List<&2, T.Pos>}
+
+# The first cell of `work` is on the board and not revealed yet.
+def head_hidden(+w: Nat, +h: Nat, shown: T.Grid(Bool), work: List<&2, Work>) -> Bool:
+  match work:
+    case Nil{}:
+      False{}
+    case Work{c, back} <> t:
+      unrevealed(w, h, shown, c)
+
+# The cells ns, each reached one step past `back`.
+def works(ns: List<&2, T.Pos>, +back: List<&2, T.Pos>) -> List<&2, Work>:
+  match ns:
+    case Nil{}:
+      Nil{}
+    case +r <> t:
+      Work{r, r <> back} <> works(t, back)
+
+def push(z: Bool, ns: List<&2, T.Pos>, back: List<&2, T.Pos>, rest: List<&2, Work>) ->
+  List<&2, Work>:
+  match z:
+    case True{}:
+      List.append(&2, Work, works(ns, back), rest)
+    case False{}:
+      rest
+
+# Reveal the cells of `work`, and the neighbours of every zero revealed. n is
+# how many cells are not revealed yet: each reveal uses one up.
+def flood(+n: Nat, work: List<&2, Work>, hd: Bool, +w: Nat, +h: Nat,
+  +layout: T.Grid(Bool), +shown: T.Grid(Bool)) -> T.Grid(Bool):
+  match n:
+    case 0n:
+      shown
+    case 1n+m:
+      match work:
+        case Nil{}:
+          shown
+        case Work{+c, +back} <> +rest:
+          match hd:
+            case False{}:
+              flood(n, rest, head_hidden(w, h, shown, rest), w, h, layout, shown)
+            case True{}:
+              +sh = B.set_at(Bool, shown, c, True{})
+              +wk = push(B.zero(w, h, layout, c), B.neighbours(w, h, c), back, rest)
+              flood(m, wk, head_hidden(w, h, sh, wk), w, h, layout, sh)
+
+def explode(g: Game, +p: T.Pos) -> Game:
+  match g:
+    case Game{w, h, layout, shown, flags, status}:
+      Game{w, h, layout, B.set_at(Bool, shown, p, True{}), flags, T.Lost{T.Exploded{p}}}
+
+def flood_open(g: Game, +p: T.Pos) -> Game:
+  match g:
+    case Game{+w, +h, +layout, +shown, flags, status}:
+      +start = {[Work{p, Nil{}}] : List<&2, Work>}
+      +sh = flood(B.count_false(shown), start, head_hidden(w, h, shown, start), w, h, layout, shown)
+      Game{w, h, layout, sh, flags, won_or_playing(all_safe(w, h, layout, sh))}
+
+def open.go(can: Bool, boom: Bool, g: Game, p: T.Pos) -> Game:
+  match can boom:
+    case False{} _:
+      g
+    case True{} True{}:
+      explode(g, p)
+    case True{} False{}:
+      flood_open(g, p)
+
+# During play, a hidden cell of the board can be opened.
+def can_open(g: Game, +p: T.Pos) -> Bool:
+  match g:
+    case Game{w, h, layout, shown, flags, status}:
+      is_playing(status) && unrevealed(w, h, shown, p)
+
+def layout_of(g: Game) -> T.Grid(Bool):
+  match g:
+    case Game{w, h, layout, shown, flags, status}:
+      layout
+
+# Reveal p whether or not it is flagged (Reveal, Chord and Assist use it).
+def open(+g: Game, +p: T.Pos) -> Game:
+  open.go(can_open(g, p), B.mine(layout_of(g), p), g, p)
+
+def reveal.go(f: Bool, g: Game, p: T.Pos) -> Game:
+  match f:
+    case True{}:
+      g
+    case False{}:
+      open(g, p)
+
+def reveal(+g: Game, +p: T.Pos) -> Game:
+  reveal.go(flagged(g, p), g, p)
+
+# Chording
+# --------
+
+def flags_among(+g: Game, qs: List<&2, T.Pos>) -> Nat:
+  match qs:
+    case Nil{}:
+      0n
+    case q <> t:
+      Nat.add(Bool.pick(Nat, flagged(g, q), 1n, 0n), flags_among(g, t))
+
+def is_hidden(s: T.Seen) -> Bool:
+  match s:
+    case T.Hidden{}:
+      True{}
+    case o:
+      False{}
+
+def hidden(v: T.Knowledge, +p: T.Pos) -> Bool:
+  match v:
+    case T.Knowledge{w, h, n, rows}:
+      B.on_board(w, h, p) && is_hidden(B.at(T.Seen, T.Hidden{}, rows, p))
+
+def seen(v: T.Knowledge, p: T.Pos) -> T.Seen:
+  match v:
+    case T.Knowledge{w, h, n, rows}:
+      B.at(T.Seen, T.Hidden{}, rows, p)
+
+def hidden_unflagged(+g: Game, +v: T.Knowledge, qs: List<&2, T.Pos>) -> List<&2, T.Pos>:
+  match qs:
+    case Nil{}:
+      Nil{}
+    case +q <> t:
+      List.filter.put(T.Pos, q, hidden_unflagged(g, v, t),
+        hidden(v, q) && Bool.not(flagged(g, q)))
+
+def chord_targets.pick(+g: Game, v: T.Knowledge, +ns: List<&2, T.Pos>, s: T.Seen) ->
+  List<&2, T.Pos>:
+  match s:
+    case T.Shown{k}:
+      Bool.pick(List<&2, T.Pos>, Nat.is_eq(flags_among(g, ns), k),
+        hidden_unflagged(g, v, ns), Nil{})
+    case o:
+      Nil{}
+
+def chord_targets.go(g: Game, +v: T.Knowledge, +p: T.Pos) -> List<&2, T.Pos>:
+  match v:
+    case T.Knowledge{w, h, n, rows}:
+      chord_targets.pick(g, v, B.neighbours(w, h, p), seen(v, p))
+
+def chord_targets(+g: Game, p: T.Pos) -> List<&2, T.Pos>:
+  chord_targets.go(g, knowledge(g), p)
+
+def chord_play(ts: List<&2, T.Pos>, g: Game) -> Game:
+  match ts:
+    case Nil{}:
+      g
+    case q <> t:
+      chord_play(t, reveal(g, q))
+
+# Flags
+# -----
+
+def toggle.go(has: Bool, flags: List<&2, T.Pos>, +p: T.Pos) -> List<&2, T.Pos>:
+  match has:
+    case True{}:
+      B.remove(flags, p)
+    case False{}:
+      p <> flags
+
+def toggle(+flags: List<&2, T.Pos>, +p: T.Pos) -> List<&2, T.Pos>:
+  toggle.go(B.contains(flags, p), flags, p)
+
+def flag.go(c: Bool, g: Game, p: T.Pos) -> Game:
+  match c:
+    case False{}:
+      g
+    case True{}:
+      match g:
+        case Game{w, h, layout, shown, flags, status}:
+          Game{w, h, layout, shown, toggle(flags, p), status}
+
+def can_flag(g: Game, +p: T.Pos) -> Bool:
+  match g:
+    case Game{w, h, layout, shown, flags, status}:
+      is_playing(status) && unrevealed(w, h, shown, p)
+
+def flag(+g: Game, +p: T.Pos) -> Game:
+  flag.go(can_flag(g, p), g, p)
+
+# The assist
+# ----------
+
+# The first cell of ps is safe and not revealed yet.
+def safe_here(+layout: T.Grid(Bool), +shown: T.Grid(Bool), ps: List<&2, T.Pos>) -> Bool:
+  match ps:
+    case Nil{}:
+      False{}
+    case +p <> t:
+      Bool.not(B.mine(layout, p)) && Bool.not(B.at(Bool, False{}, shown, p))
+
+def first_safe.go(ps: List<&2, T.Pos>, hit: Bool, +layout: T.Grid(Bool),
+  +shown: T.Grid(Bool)) -> Maybe<&2, T.Pos>:
+  match ps:
+    case Nil{}:
+      None{}
+    case p <> +t:
+      match hit:
+        case True{}:
+          Some{p}
+        case False{}:
+          first_safe.go(t, safe_here(layout, shown, t), layout, shown)
+
+# The first safe cell of ps that is not revealed yet.
+def first_safe(+layout: T.Grid(Bool), +shown: T.Grid(Bool), +ps: List<&2, T.Pos>) ->
+  Maybe<&2, T.Pos>:
+  first_safe.go(ps, safe_here(layout, shown, ps), layout, shown)
+
+def safe_cell(g: Game) -> Maybe<&2, T.Pos>:
+  match g:
+    case Game{w, h, +layout, +shown, flags, status}:
+      first_safe(layout, shown, B.cells(w, h))
+
+def lose(g: Game, p: T.Pos) -> Game:
+  match g:
+    case Game{w, h, layout, shown, flags, status}:
+      Game{w, h, layout, shown, flags, T.Lost{T.AssistTooEarly{p}}}
+
+def assist.safe(m: Maybe<&2, T.Pos>, g: Game) -> Game:
+  match m:
+    case None{}:
+      g
+    case Some{p}:
+      open(g, p)
+
+def assist.pick(r: Maybe<&2, T.Pos>, +g: Game) -> Game:
+  match r:
+    case Some{q}:
+      lose(g, q)
+    case None{}:
+      assist.safe(safe_cell(g), g)
+
+def assist.go(playing: Bool, +g: Game) -> Game:
+  match playing:
+    case False{}:
+      g
+    case True{}:
+      assist.pick(S.solve(knowledge(g)), g)
+
+def assist(+g: Game) -> Game:
+  assist.go(is_playing(status(g)), g)
+
+# Actions
+# -------
+
+def step(+g: Game, a: T.Action) -> Game:
+  match a:
+    case T.Reveal{p}:
+      reveal(g, p)
+    case T.Chord{p}:
+      chord_play(chord_targets(g, p), g)
+    case T.Flag{p}:
+      flag(g, p)
+    case T.Assist{}:
+      assist(g)

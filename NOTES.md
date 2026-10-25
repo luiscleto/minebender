@@ -53,14 +53,53 @@ Reviewed one at a time by the user; never weaken or delete these without their c
 
 ## Spec gaps found (Q2: a law passed while behaviour was wrong)
 
+No case of a law passing while observed behaviour was wrong. Found during review:
+
 - (found in review, not yet in behaviour) "Games terminate" rests on monotone + bridge: an action that
   changes the knowledge must reveal a cell. On a board with zero rows, bridge cannot pin the
   knowledge's width (no row to measure), so the width field could change forever without a reveal.
   Harmless in practice: every level has at least 9 rows.
 
+## Status (2026-10-25)
+
+All 25 laws are proven: `./check.sh` prints ALL PROOFS CHECK for `bend PROOF.bend` and for
+`--verdict` (the Lean-proven BendTT kernel; needs Lean v4.34.0, installed with elan v4.2.4 into
+`~/.elan`, checksum verified against the GitHub release). Self-play (`selfplay.bend`) wins every test
+game; on Expert a solver call takes ~150 ms, ~1 s when genuinely stuck.
+
+Size: LAWS.bend 573 lines (user-owned); code ~1030 lines (types, board, game, solver); proofs
+~9400 lines in PROOF.bend + 13 `proof_*.bend` lemma modules (solver correctness alone ~2600).
+
+## Q1: what the user read beyond LAWS.bend
+
+types.bend (the interface types), and nothing else: every definition and law in LAWS.bend was
+reviewed one by one (with plain-English and Bend for each). The code and proofs were not read; the
+gate is the checker. The user did need a Bend primer along the way (quantities `&1`/`&2`/`+`,
+templates, why loops become recursion over lists), and spotted several simplifications in the spec
+itself (`!=` instead of a helper, `not same` in `adjacent`, the `flags_hidden` law).
+
 ## Where proofs got hard (Q3)
 
-(none yet)
+- Rewrite direction (`%e`) was the most frequent friction: dozens of fixes. A fixed rule
+  (`e : {new == old}`) helped; error messages show expected/observed terms, which made it fast.
+- Function-typed hypotheses are affine (usable once, even erased), so "for every cell" invariants
+  could not be passed around as functions. Every invariant became a Bool check over all cells plus
+  a "read it back at one cell" lemma (equalities are copyable).
+- No mutual recursion, and a proof helper cannot call the lemma it serves: induction hypotheses are
+  passed into helpers as closures (`e2 => lemma(rest, ...)`).
+- A law's `for x` without `+` cannot be reused in its proof, and a proof def cannot add `+`. The
+  user's laws were left untouched: each `L.law` forwards to a restated lemma with `for +x`.
+  (Correction to what I told the user during review: `for` lines *do* need `+` when a proof reuses
+  the variable; the restated lemmas carry it.)
+- `flood_exact` needs an actual path for every cell the flood reveals. The flood code was changed to
+  carry a ghost path with each queued cell (used only by the proofs).
+- The solver's completeness (no layout found ⇒ none exists) was the largest proof: pruning
+  soundness needed grid sums = cell sums (generic templated lemma), inequality arithmetic, and
+  completion/coverage invariants for the partial layout. The code was changed in one place for it:
+  the to-do ordering used a pair (hard to take apart in proofs) and became two filters.
+- The fast solver is proven against the brute-force definition of `ProvablySafe`; the search is
+  "frontier first" depth-first with bound pruning, not component-split (the brief's suggestion), to
+  keep the proof one induction.
 
 ## Bend lessons
 
@@ -72,4 +111,7 @@ Reviewed one at a time by the user; never weaken or delete these without their c
   concrete boards as `{==}` defs instead (`bend examples.bend --check-only`); a wrong value fails
   with expected/observed.
 - A `+v` stays usable after `match v`: no need to rebuild a copyable value from its fields.
+- `%e : P` with `e : {a == b}`: the goal must be P with b at `_`; it becomes P with a. Rule of thumb:
+  `e : {new == old}`. Same for an inline `{%e : P; x : T}`: T is old (P with b), x has P with a.
+  (use `Equal.sym` to go the other way).
 - A refutation of `{1n+n == 0n}`: rewrite through `disc` (0n to Empty, 1n+p to Unit), answer `Unit{}`.
