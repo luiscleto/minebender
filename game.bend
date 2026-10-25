@@ -115,10 +115,22 @@ def setup(l: T.Level) -> T.Setup:
 
 # Board generation
 # ----------------
-# Selection sampling (Knuth's Algorithm S) over the cells other than
-# `first`, row by row: with `need` mines still to place among `left`
+# Selection sampling (Knuth's Algorithm S) over the cells outside a zone
+# kept free, row by row: with `need` mines still to place among `left`
 # candidates, a cell gets a mine when need = left, or else with probability
 # about need/left. Whatever the random numbers, exactly n mines come out.
+#
+# The zone is the first click and, when there is room, its neighbours too,
+# so the first click opens an area (as in Windows Vista and later).
+
+# The cells kept free of mines: `first`, and its neighbours when `wide`.
+type Zone is Data:
+  Zone{first: T.Pos, wide: Bool}
+
+def gen.out(z: Zone, +p: T.Pos) -> Bool:
+  match z:
+    case Zone{+first, wide}:
+      Bool.pick(Bool, wide, B.within_one(first, p), B.same(p, first))
 
 type GenState is Data:
   GenState{need: Nat, left: Nat, rs: List<&2, U32>}
@@ -136,10 +148,10 @@ def gen.pick(+need: Nat, +left: Nat, rs: List<&2, U32>) -> Bool:
       Nat.is_eq(need, left) || gen.coin(r, left, need)
 
 # Whether cell p gets a mine.
-def gen.bit(first: T.Pos, p: T.Pos, st: GenState) -> Bool:
+def gen.bit(z: Zone, p: T.Pos, st: GenState) -> Bool:
   match st:
     case GenState{+need, left, rs}:
-      Bool.not(B.same(p, first)) && Nat.is_lt(0n, need) && gen.pick(need, left, rs)
+      Bool.not(gen.out(z, p)) && Nat.is_lt(0n, need) && gen.pick(need, left, rs)
 
 def gen.next.go(skip: Bool, bit: Bool, need: Nat, left: Nat, rs: List<&2, U32>) -> GenState:
   match skip:
@@ -150,45 +162,47 @@ def gen.next.go(skip: Bool, bit: Bool, need: Nat, left: Nat, rs: List<&2, U32>) 
         List.tail(&2, U32, rs)}
 
 # The state after cell p.
-def gen.next(+first: T.Pos, +p: T.Pos, +st: GenState) -> GenState:
+def gen.next(+z: Zone, +p: T.Pos, +st: GenState) -> GenState:
   match st:
     case GenState{need, left, rs}:
-      gen.next.go(B.same(p, first), gen.bit(first, p, st), need, left, rs)
+      gen.next.go(gen.out(z, p), gen.bit(z, p, st), need, left, rs)
 
-def gen.row(+first: T.Pos, +y: Nat, xs: List<&2, Nat>, +st: GenState) -> List<&2, Bool>:
+def gen.row(+z: Zone, +y: Nat, xs: List<&2, Nat>, +st: GenState) -> List<&2, Bool>:
   match xs:
     case Nil{}:
       Nil{}
     case x <> t:
       +p = {T.Pos{x, y} : T.Pos}
-      gen.bit(first, p, st) <> gen.row(first, y, t, gen.next(first, p, st))
+      gen.bit(z, p, st) <> gen.row(z, y, t, gen.next(z, p, st))
 
 # The state after a row.
-def gen.row_state(+first: T.Pos, +y: Nat, xs: List<&2, Nat>, +st: GenState) -> GenState:
+def gen.row_state(+z: Zone, +y: Nat, xs: List<&2, Nat>, +st: GenState) -> GenState:
   match xs:
     case Nil{}:
       st
     case x <> t:
-      gen.row_state(first, y, t, gen.next(first, T.Pos{x, y}, st))
+      gen.row_state(z, y, t, gen.next(z, T.Pos{x, y}, st))
 
-def gen.rows(+first: T.Pos, +w: Nat, ys: List<&2, Nat>, +st: GenState) -> T.Grid(Bool):
+def gen.rows(+z: Zone, +w: Nat, ys: List<&2, Nat>, +st: GenState) -> T.Grid(Bool):
   match ys:
     case Nil{}:
       Nil{}
     case +y <> t:
-      gen.row(first, y, List.range(w), st)
-        <> gen.rows(first, w, t, gen.row_state(first, y, List.range(w), st))
+      gen.row(z, y, List.range(w), st)
+        <> gen.rows(z, w, t, gen.row_state(z, y, List.range(w), st))
 
-# How many cells of ps are not `first`.
-def gen.left(+first: T.Pos, ps: List<&2, T.Pos>) -> Nat:
+# How many cells of ps are outside the zone.
+def gen.left(+z: Zone, ps: List<&2, T.Pos>) -> Nat:
   match ps:
     case Nil{}:
       0n
     case p <> t:
-      Nat.add(Bool.pick(Nat, B.same(p, first), 0n, 1n), gen.left(first, t))
+      Nat.add(Bool.pick(Nat, gen.out(z, p), 0n, 1n), gen.left(z, t))
 
-def place_mines(+w: Nat, +h: Nat, n: Nat, +first: T.Pos, rs: List<&2, U32>) -> T.Grid(Bool):
-  gen.rows(first, w, List.range(h), GenState{n, gen.left(first, B.cells(w, h)), rs})
+# Room for the first click's neighbours: at least 9 cells left free.
+def place_mines(+w: Nat, +h: Nat, +n: Nat, +first: T.Pos, rs: List<&2, U32>) -> T.Grid(Bool):
+  +z = {Zone{first, Nat.is_le(Nat.add(n, 9n), Nat.mul(w, h))} : Zone}
+  gen.rows(z, w, List.range(h), GenState{n, gen.left(z, B.cells(w, h)), rs})
 
 # Revealing
 # ---------

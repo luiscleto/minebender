@@ -574,6 +574,19 @@ law gen_first_safe:
   for rs: List<&2, U32>
   {mine(G.place_mines(w, h, n, first, rs), first) == False{} : Bool}
 
+# LAW: "When there's room, the first click opens an area: no mine on it or
+# next to it." (As in Windows Vista and later.)
+law gen_opening:
+  for w: Nat
+  for h: Nat
+  for n: Nat
+  for first: T.Pos
+  for rs: List<&2, U32>
+  for room: {Nat.is_le(Nat.add(n, 9n), Nat.mul(w, h)) == True{} : Bool}
+  for q: T.Pos
+  for near: {within_one(first, q) == True{} : Bool}
+  {mine(G.place_mines(w, h, n, first, rs), q) == False{} : Bool}
+
 # ==========================================================================
 # Laws: the display
 # ==========================================================================

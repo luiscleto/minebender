@@ -363,6 +363,9 @@ def L.gen_count(w, h, n, first, rs, on, fits):
 def L.gen_first_safe(w, h, n, first, rs):
   PN.gen_first_safe_(w, h, n, first, rs)
 
+def L.gen_opening(w, h, n, first, rs, room, q, near):
+  PN.gen_opening_(w, h, n, first, rs, room, q, near)
+
 # The real board, winning and flags
 # =================================
 

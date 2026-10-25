@@ -10,6 +10,11 @@ Running notes for the law-driven-development trial (see BRIEF.md for the questio
 3. An option is a hidden cell that is safe in every consistent layout. Provably mined cells are not
    moves.
 4. The first click is always safe: mines are placed after it, avoiding that cell.
+   Later (user's choice, after checking what later Windows versions did): when there is room
+   (n + 9 <= w*h, true for every level and Custom cap) its neighbours are kept free too, so the
+   first click always opens an area, as in Windows Vista and later. XP only guaranteed the cell
+   itself (checked in the XPWinmine source: a first-click mine moves to the first free cell from
+   the top-left).
 5. Levels follow Windows XP (checked against a source restoration, github.com/12UE/XPWinmine):
    Beginner 9x9/10, Intermediate 16x16/40, Expert 30x16/99; Custom clamps width 9..30, height 9..25,
    mines 10..999, then caps mines at w*h - 10.
@@ -37,6 +42,9 @@ Reviewed one at a time by the user; never weaken or delete these without their c
 - 2026-10-25 (after the UI went live): the display section: Tile type, tile, tile_of, is_covered,
   display_play, display_blast, display_hint, display_mines (approved as drafted; display_mines kept
   loose on purpose: every mine is visible after the game, not which XP tile it gets).
+- 2026-10-25: gen_opening (first click opens an area when there is room); the generator now keeps a
+  zone free (the first cell, or it and its neighbours), and its proofs gained a bound: at most 9
+  board cells are within one step of a cell.
 
 ## Choices settled during review
 
@@ -77,7 +85,7 @@ No case of a law passing while observed behaviour was wrong. Found during review
 
 ## Status (2026-10-25)
 
-All 29 approved laws (25 game laws and 4 display laws) are proven: `./check.sh` prints ALL PROOFS CHECK for `bend PROOF.bend` and for
+All 30 approved laws (26 game laws and 4 display laws) are proven: `./check.sh` prints ALL PROOFS CHECK for `bend PROOF.bend` and for
 `--verdict` (the Lean-proven BendTT kernel; needs Lean v4.34.0, installed with elan v4.2.4 into
 `~/.elan`, checksum verified against the GitHub release). Self-play (`selfplay.bend`) wins every test
 game.

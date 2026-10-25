@@ -1141,6 +1141,12 @@ function $game_setup(_l_0) {
   }
 }
 
+function $game_gen_out(_z_0, _p_0) {
+  const _first_0 = _z_0["first"];
+  const _wide_0 = _z_0["wide"];
+  return $Bool_pick(_wide_0, ($board_within_one(_first_0, _p_0)), ($board_same(_p_0, _first_0)));
+}
+
 function $game_gen_coin(_r_0, _left_0, _need_0) {
   const _x_0 = ($Nat_mod(_r_0, _left_0));
   return (_x_0 < _need_0);
@@ -1157,11 +1163,11 @@ function $game_gen_pick(_need_0, _left_0, _rs_0) {
   }
 }
 
-function $game_gen_bit(_first_0, _p_0, _st_0) {
+function $game_gen_bit(_z_0, _p_0, _st_0) {
   const _need_0 = _st_0["need"];
   const _left_0 = _st_0["left"];
   const _rs_0 = _st_0["rs"];
-  return $Bool_and(($Bool_and(($Bool_not(($board_same(_p_0, _first_0)))), (0 < _need_0))), ($game_gen_pick(_need_0, _left_0, _rs_0)));
+  return $Bool_and(($Bool_and(($Bool_not(($game_gen_out(_z_0, _p_0)))), (0 < _need_0))), ($game_gen_pick(_need_0, _left_0, _rs_0)));
 }
 
 function $game_gen_next_go(_skip_0, _bit_0, _need_0, _left_0, _rs_0) {
@@ -1173,28 +1179,28 @@ function $game_gen_next_go(_skip_0, _bit_0, _need_0, _left_0, _rs_0) {
   }
 }
 
-function $game_gen_next(_first_0, _p_0, _st_0) {
+function $game_gen_next(_z_0, _p_0, _st_0) {
   const _need_0 = _st_0["need"];
   const _left_0 = _st_0["left"];
   const _rs_0 = _st_0["rs"];
-  return $game_gen_next_go(($board_same(_p_0, _first_0)), ($game_gen_bit(_first_0, _p_0, {$: "GenState", "need": _need_0, "left": _left_0, "rs": _rs_0})), _need_0, _left_0, _rs_0);
+  return $game_gen_next_go(($game_gen_out(_z_0, _p_0)), ($game_gen_bit(_z_0, _p_0, {$: "GenState", "need": _need_0, "left": _left_0, "rs": _rs_0})), _need_0, _left_0, _rs_0);
 }
 
-function $game_gen_row(_first_0, _y_0, _xs_0, _st_0) {
+function $game_gen_row(_z_0, _y_0, _xs_0, _st_0) {
   if (_xs_0.$ === "Nil") {
     return {$: "Nil"};
   } else {
     const _x_0 = _xs_0["head"];
     const _t_0 = _xs_0["tail"];
     const _p_0 = {$: "Pos", "x": _x_0, "y": _y_0};
-    return {$: "Con", "head": ($game_gen_bit(_first_0, _p_0, _st_0)), "tail": ($game_gen_row(_first_0, _y_0, _t_0, ($game_gen_next(_first_0, _p_0, _st_0))))};
+    return {$: "Con", "head": ($game_gen_bit(_z_0, _p_0, _st_0)), "tail": ($game_gen_row(_z_0, _y_0, _t_0, ($game_gen_next(_z_0, _p_0, _st_0))))};
   }
 }
 
 function $game_gen_row_state($0, $1, $2, $3) {
   for (;;) {
     {
-      const _first_0 = $0;
+      const _z_0 = $0;
       const _y_0 = $1;
       const _xs_0 = $2;
       const _st_0 = $3;
@@ -1203,40 +1209,41 @@ function $game_gen_row_state($0, $1, $2, $3) {
       } else {
         const _x_0 = _xs_0["head"];
         const _t_0 = _xs_0["tail"];
-        $0 = _first_0;
+        $0 = _z_0;
         $1 = _y_0;
         $2 = _t_0;
-        $3 = ($game_gen_next(_first_0, {$: "Pos", "x": _x_0, "y": _y_0}, _st_0));
+        $3 = ($game_gen_next(_z_0, {$: "Pos", "x": _x_0, "y": _y_0}, _st_0));
         continue;
       }
     }
   }
 }
 
-function $game_gen_rows(_first_0, _w_0, _ys_0, _st_0) {
+function $game_gen_rows(_z_0, _w_0, _ys_0, _st_0) {
   if (_ys_0.$ === "Nil") {
     return {$: "Nil"};
   } else {
     const _y_0 = _ys_0["head"];
     const _t_0 = _ys_0["tail"];
-    return {$: "Con", "head": ($game_gen_row(_first_0, _y_0, ($List_range(_w_0)), _st_0)), "tail": ($game_gen_rows(_first_0, _w_0, _t_0, ($game_gen_row_state(_first_0, _y_0, ($List_range(_w_0)), _st_0))))};
+    return {$: "Con", "head": ($game_gen_row(_z_0, _y_0, ($List_range(_w_0)), _st_0)), "tail": ($game_gen_rows(_z_0, _w_0, _t_0, ($game_gen_row_state(_z_0, _y_0, ($List_range(_w_0)), _st_0))))};
   }
 }
 
-function $game_gen_left(_first_0, _ps_0) {
+function $game_gen_left(_z_0, _ps_0) {
   if (_ps_0.$ === "Nil") {
     return 0;
   } else {
     const _p_0 = _ps_0["head"];
     const _t_0 = _ps_0["tail"];
-    const _x_0 = ($Bool_pick(($board_same(_p_0, _first_0)), 0, 1));
-    const _x_1 = ($game_gen_left(_first_0, _t_0));
+    const _x_0 = ($Bool_pick(($game_gen_out(_z_0, _p_0)), 0, 1));
+    const _x_1 = ($game_gen_left(_z_0, _t_0));
     return nat_chk(_x_0 + _x_1);
   }
 }
 
 function $game_place_mines(_w_0, _h_0, _n_0, _first_0, _rs_0) {
-  return $game_gen_rows(_first_0, _w_0, ($List_range(_h_0)), {$: "GenState", "need": _n_0, "left": ($game_gen_left(_first_0, ($board_cells(_w_0, _h_0)))), "rs": _rs_0});
+  const _z_0 = {$: "Zone", "first": _first_0, "wide": ($Nat_is_le(nat_chk(_n_0 + 9), nat_chk(_w_0 * _h_0)))};
+  return $game_gen_rows(_z_0, _w_0, ($List_range(_h_0)), {$: "GenState", "need": _n_0, "left": ($game_gen_left(_z_0, ($board_cells(_w_0, _h_0)))), "rs": _rs_0});
 }
 
 function $game_head_hidden(_w_0, _h_0, _shown_0, _work_0) {
@@ -2207,6 +2214,7 @@ function $solver_loop_c13(_t_0,_found_0,_pl_0,_part_0,_ctx_0) {
   "game:clamp": run_lib((a0,a1,a2) => run_loop($game_clamp(nat_in(a0),nat_in(a1),nat_in(a2))), 3),
   "game:custom": run_lib((a0,a1,a2) => run_loop($game_custom(nat_in(a0),nat_in(a1),nat_in(a2))), 3),
   "game:setup": run_lib((a0) => run_loop($game_setup(a0)), 1),
+  "game:gen.out": run_lib((a0,a1) => run_loop($game_gen_out(a0,a1)), 2),
   "game:gen.coin": run_lib((a0,a1,a2) => run_loop($game_gen_coin(a0,nat_in(a1),nat_in(a2))), 3),
   "game:gen.pick": run_lib((a0,a1,a2) => run_loop($game_gen_pick(nat_in(a0),nat_in(a1),a2)), 3),
   "game:gen.bit": run_lib((a0,a1,a2) => run_loop($game_gen_bit(a0,a1,a2)), 3),
