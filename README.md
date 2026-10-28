@@ -21,6 +21,16 @@ as a trial of law-driven development. **Play: https://cleto.dev/minebender/**
 The assist: press it when stuck. If no hidden cell is provably safe from what you can see (numbers
 and the total mine count), it opens a safe cell. If one could be deduced, you lose and it is shown.
 
+## Bend package
+
+Published on BendHub as `minebender-game@1.0.0.0` (from `PROOF.bend`, so it holds the laws, the
+game, the solver and every proof):
+
+```python
+import minebender-game@1.0.0.0/game.bend as G
+import minebender-game@1.0.0.0/LAWS.bend as L
+```
+
 ## License
 
 MIT (see `LICENSE`). `docs/ui.mjs` is compiler output that includes parts of Bend's runtime and
